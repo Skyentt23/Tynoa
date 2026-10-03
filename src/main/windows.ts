@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
+import { lockNavigation } from './navigation'
 import { isAllowedHelpLink, placeWidget } from './policy'
 
 export const WIDGET_SIZE = { width: 380, height: 420 }
@@ -49,6 +50,7 @@ export function createWidgetWindow(position: { x: number; y: number }): BrowserW
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setIgnoreMouseEvents(true, { forward: true })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  lockNavigation(win.webContents)
   win.once('ready-to-show', () => win.showInactive())
   loadRenderer(win, 'widget')
   return win
@@ -76,6 +78,7 @@ export function openSettingsWindow(): void {
     if (isAllowedHelpLink(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  lockNavigation(win.webContents)
   win.once('ready-to-show', () => win.show())
   win.on('closed', () => {
     settingsWindow = null

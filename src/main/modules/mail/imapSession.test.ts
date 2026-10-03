@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 interface FakeFlowLike {
   options: Record<string, unknown>
@@ -9,7 +9,9 @@ interface FakeFlowLike {
 const h = vi.hoisted(() => ({
   instances: [] as FakeFlowLike[],
   connectError: null as unknown,
-  messages: [] as unknown[]
+  messages: [] as unknown[],
+  logoutHangs: false,
+  closeCalls: 0
 }))
 
 vi.mock('imapflow', async () => {
@@ -32,8 +34,12 @@ vi.mock('imapflow', async () => {
     async *fetch(): AsyncGenerator<unknown> {
       yield* h.messages
     }
-    async logout(): Promise<void> {}
-    close(): void {}
+    logout(): Promise<void> {
+      return h.logoutHangs ? new Promise<void>(() => undefined) : Promise.resolve()
+    }
+    close(): void {
+      h.closeCalls++
+    }
   }
   return { ImapFlow }
 })
@@ -47,6 +53,8 @@ beforeEach(() => {
   h.instances.length = 0
   h.connectError = null
   h.messages = []
+  h.logoutHangs = false
+  h.closeCalls = 0
 })
 
 describe('createImapSession', () => {
@@ -104,5 +112,28 @@ describe('createImapSession', () => {
   it('un événement error ne fait pas planter le process', () => {
     createImapSession(creds)
     expect(() => h.instances[0].emit('error', new Error('socket'))).not.toThrow()
+  })
+})
+
+describe('close', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('ne reste pas bloqué si la connexion est morte (déconnexion propre sans réponse)', async () => {
+    vi.useFakeTimers()
+    h.logoutHangs = true
+    let closed = false
+    void createImapSession(creds)
+      .close()
+      .then(() => (closed = true))
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(closed).toBe(true)
+    expect(h.closeCalls).toBe(1)
+  })
+
+  it('déconnexion propre quand le serveur répond', async () => {
+    await createImapSession(creds).close()
+    expect(h.closeCalls).toBe(0)
   })
 })

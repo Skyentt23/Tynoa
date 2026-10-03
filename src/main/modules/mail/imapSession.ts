@@ -7,6 +7,8 @@ import {
   type MailboxInfo
 } from './types'
 
+const LOGOUT_TIMEOUT_MS = 2_000
+
 /** Session Gmail réelle, en lecture seule : en-têtes uniquement, aucun drapeau modifié. */
 export function createImapSession(creds: MailCredentials): ImapSession {
   const client = new ImapFlow({
@@ -65,11 +67,20 @@ export function createImapSession(creds: MailCredentials): ImapSession {
       client.on('close', () => cb())
     },
 
+    // Après une veille, la connexion est souvent à moitié morte : LOGOUT resterait sans réponse
+    // pendant des minutes et bloquerait la reconnexion. On n'attend pas plus de 2 s.
     async close() {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const gaveUp = new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), LOGOUT_TIMEOUT_MS)
+      })
       try {
-        await client.logout()
+        const outcome = await Promise.race([client.logout().then(() => 'done' as const), gaveUp])
+        if (outcome === 'timeout') client.close()
       } catch {
         client.close()
+      } finally {
+        clearTimeout(timer)
       }
     }
   }
