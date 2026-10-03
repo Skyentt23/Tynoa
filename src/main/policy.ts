@@ -27,7 +27,7 @@ export function isAllowedOpenLink(link: string): boolean {
 
 /** Liens d'aide autorisés dans la fenêtre Paramètres. */
 export function isAllowedHelpLink(link: string): boolean {
-  return isHttpsHost(link, ['myaccount.google.com', 'support.google.com'])
+  return isHttpsHost(link, ['myaccount.google.com', 'support.google.com', 'calendar.google.com'])
 }
 
 export function isValidEmail(email: string): boolean {

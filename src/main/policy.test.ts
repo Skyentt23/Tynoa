@@ -39,6 +39,7 @@ describe('isAllowedHelpLink', () => {
   it('accepte les pages d’aide Google', () => {
     expect(isAllowedHelpLink('https://myaccount.google.com/apppasswords')).toBe(true)
     expect(isAllowedHelpLink('https://support.google.com/accounts/answer/185833')).toBe(true)
+    expect(isAllowedHelpLink('https://calendar.google.com/calendar/r/settings')).toBe(true)
   })
   it('refuse le reste', () => {
     expect(isAllowedHelpLink('https://example.com/')).toBe(false)

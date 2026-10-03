@@ -42,6 +42,8 @@ export function Settings(): JSX.Element {
       setDisplaySeconds(s.displaySeconds)
       setLaunchAtStartup(s.launchAtStartup)
       setCalendarCount(s.calendarCount)
+      // Aucun agenda : le champ (et le lien d'aide) est affiché d'emblée.
+      if (s.calendarCount === 0) setCalendarUrls('')
       setReminderMinutes(s.reminderMinutes)
     })
   }, [])
@@ -170,7 +172,11 @@ export function Settings(): JSX.Element {
               onChange={(e) => setCalendarUrls(e.target.value)}
             />
             <small>
-              Google Agenda (sur ordinateur) → ⚙ Paramètres → cliquer sur l&apos;agenda à gauche →{' '}
+              Ouvrir{' '}
+              <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noreferrer">
+                les paramètres de Google Agenda
+              </a>
+              , cliquer sur l&apos;agenda à gauche (sous « Paramètres de mes agendas ») →{' '}
               <strong>Adresse secrète au format iCal</strong> → copier. Laisser vide puis Enregistrer pour
               retirer tous les agendas.
             </small>
