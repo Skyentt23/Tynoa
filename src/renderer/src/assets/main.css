@@ -225,3 +225,124 @@ body[data-view='widget'] {
     transform: translateY(1px) rotate(8deg);
   }
 }
+
+/* ---------- Paramètres ---------- */
+
+body[data-view='settings'] {
+  --page: #f7f7f8;
+  --ink: #18181b;
+  --line: #d4d4d8;
+  --field: #ffffff;
+  --hint: #52525b;
+  background: var(--page);
+  color: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-view='settings'] {
+    --page: #18181b;
+    --ink: #f4f4f5;
+    --line: #3f3f46;
+    --field: #27272a;
+    --hint: #a1a1aa;
+  }
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  font-size: 14px;
+}
+
+.settings h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.settings input[type='email'],
+.settings input[type='password'],
+.settings input[type='number'] {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.settings input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings small {
+  color: var(--hint);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.settings a {
+  color: var(--accent);
+}
+
+.settings .checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.settings .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings button {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings button.primary {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  color: #fff;
+}
+
+.settings button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.settings .message {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.settings .message.ok {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.settings .message.error {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.settings .message.info {
+  background: rgba(161, 161, 170, 0.15);
+}

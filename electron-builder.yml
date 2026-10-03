@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: tynoa
+appId: fr.tynoa.app
+productName: Tynoa
 directories:
   buildResources: build
 files:
