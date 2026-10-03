@@ -28,7 +28,8 @@ export function createImapSession(creds: MailCredentials): ImapSession {
       try {
         await client.connect()
       } catch (err) {
-        if ((err as { authenticationFailed?: boolean }).authenticationFailed) throw new MailAuthError()
+        const e = err as { authenticationFailed?: boolean; responseText?: string }
+        if (e.authenticationFailed) throw new MailAuthError(e.responseText)
         throw err
       }
     },

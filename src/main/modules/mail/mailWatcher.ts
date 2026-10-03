@@ -92,6 +92,7 @@ export class MailWatcher {
       await session.close().catch(() => undefined)
       if (err instanceof MailAuthError) {
         // Pas de nouvel essai : insister ferait bloquer le compte par Google.
+        this.deps.log?.(err.message)
         this.deps.bus.emit('mail.status', { state: 'error', reason: 'auth' })
         return
       }

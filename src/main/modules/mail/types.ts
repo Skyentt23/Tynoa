@@ -35,8 +35,8 @@ export interface MailCredentials {
 export type ImapSessionFactory = (creds: MailCredentials) => ImapSession
 
 export class MailAuthError extends Error {
-  constructor() {
-    super('Authentification IMAP refusée')
+  constructor(serverResponse?: string) {
+    super(serverResponse ? `Authentification IMAP refusée : ${serverResponse}` : 'Authentification IMAP refusée')
     this.name = 'MailAuthError'
   }
 }
