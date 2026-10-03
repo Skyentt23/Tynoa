@@ -13,6 +13,16 @@ export interface Settings {
   /** Position du widget choisie par l'utilisateur (null = en haut au centre). */
   widgetX: number | null
   widgetY: number | null
+  /** Identifiant client OAuth (appli de bureau) du projet Google Cloud de l'utilisateur. */
+  googleClientId: string
+  /** Secret client d'une appli de bureau : non confidentiel selon Google. */
+  googleClientSecret: string
+  /** Minutes avant un événement pour afficher le rappel. */
+  reminderMinutes: number
+  /** Jour (AAAA-MM-JJ) du dernier résumé affiché. */
+  lastSummaryDate: string | null
+  /** Rappels déjà affichés (clé d'événement + début), pour ne jamais rappeler deux fois. */
+  remindedKeys: string[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,7 +33,12 @@ export const DEFAULT_SETTINGS: Settings = {
   uidValidity: null,
   pausedUntil: null,
   widgetX: null,
-  widgetY: null
+  widgetY: null,
+  googleClientId: '',
+  googleClientSecret: '',
+  reminderMinutes: 10,
+  lastSummaryDate: null,
+  remindedKeys: []
 }
 
 export class SettingsStore {
@@ -62,6 +77,19 @@ function sanitize(r: Record<string, unknown>): Settings {
     uidValidity: typeof r.uidValidity === 'string' ? r.uidValidity : null,
     pausedUntil: typeof r.pausedUntil === 'number' ? r.pausedUntil : null,
     widgetX: Number.isFinite(r.widgetX) ? (r.widgetX as number) : null,
-    widgetY: Number.isFinite(r.widgetY) ? (r.widgetY as number) : null
+    widgetY: Number.isFinite(r.widgetY) ? (r.widgetY as number) : null,
+    googleClientId: typeof r.googleClientId === 'string' ? r.googleClientId : d.googleClientId,
+    googleClientSecret:
+      typeof r.googleClientSecret === 'string' ? r.googleClientSecret : d.googleClientSecret,
+    reminderMinutes:
+      Number.isInteger(r.reminderMinutes) &&
+      (r.reminderMinutes as number) >= 1 &&
+      (r.reminderMinutes as number) <= 120
+        ? (r.reminderMinutes as number)
+        : d.reminderMinutes,
+    lastSummaryDate: typeof r.lastSummaryDate === 'string' ? r.lastSummaryDate : null,
+    remindedKeys: Array.isArray(r.remindedKeys)
+      ? r.remindedKeys.filter((k): k is string => typeof k === 'string')
+      : []
   }
 }

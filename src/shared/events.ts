@@ -21,10 +21,43 @@ export interface MailStatus {
   reason?: MailStatusReason
 }
 
+export interface CalendarEvent {
+  /** `calendarId:eventId`, stable entre deux lectures. */
+  key: string
+  title: string
+  /** ISO 8601 ; date seule (AAAA-MM-JJ) pour un événement « toute la journée ». */
+  start: string
+  end: string
+  allDay: boolean
+  link: string
+}
+
+export type CalendarChangeKind = 'added' | 'moved' | 'cancelled'
+
+export interface CalendarChange {
+  kind: CalendarChangeKind
+  event: CalendarEvent
+  /** Début avant déplacement (kind = 'moved'). */
+  previousStart?: string
+}
+
+export type GoogleStatusReason = 'revoked' | 'network' | 'api-disabled' | 'invalid-client'
+
+export interface GoogleStatus {
+  state: 'connected' | 'disconnected' | 'error'
+  reason?: GoogleStatusReason
+  email?: string
+}
+
 export interface TynoaEvents {
   'mail.received': MailReceived
   'mail.batch': { count: number }
   'mail.status': MailStatus
+  'calendar.reminder': { event: CalendarEvent; minutes: number }
+  'calendar.next': { event: CalendarEvent | null }
+  'calendar.summary': { events: CalendarEvent[] }
+  'calendar.changed': CalendarChange
+  'google.status': GoogleStatus
 }
 
 export type TynoaEventName = keyof TynoaEvents
