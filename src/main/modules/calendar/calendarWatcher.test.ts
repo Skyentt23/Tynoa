@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { CalendarEvent, TynoaEvents } from '../../../shared/events'
 import { EventBus } from '../../events/eventBus'
 import { DEFAULT_SETTINGS, type Settings } from '../../store/settings'
-import { CalendarApiError } from './calendarApi'
+import { CalendarSourceError } from './icsSource'
 import { CalendarWatcher } from './calendarWatcher'
 
 const at = (h: number, m = 0, day = 3): Date => new Date(2026, 9, day, h, m)
@@ -22,7 +22,7 @@ async function flush(): Promise<void> {
   for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r))
 }
 
-function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<Settings>; token?: string | null } = { now: at(8) }) {
+function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<Settings>; sources?: string[] } = { now: at(8) }) {
   let stored: Settings = { ...DEFAULT_SETTINGS, ...opts.settings }
   const settings = {
     load: (): Settings => ({ ...stored, remindedKeys: [...stored.remindedKeys] }),
@@ -30,11 +30,10 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
   }
   const server = { events: opts.events ?? [], error: null as Error | null }
   const clock = { now: opts.now }
-  const tokenRef: { value: string | null | undefined } = { value: opts.token }
-  const invalidateToken = vi.fn()
+  const sourcesRef = { value: opts.sources ?? ['https://calendar.google.com/calendar/ical/x/private-y/basic.ics'] }
   const bus = new EventBus<TynoaEvents>()
   const seen: { name: string; payload: unknown }[] = []
-  for (const name of ['calendar.reminder', 'calendar.next', 'calendar.summary', 'calendar.changed', 'google.status'] as const) {
+  for (const name of ['calendar.reminder', 'calendar.next', 'calendar.summary', 'calendar.changed', 'calendar.status'] as const) {
     bus.on(name, (payload) => seen.push({ name, payload }))
   }
   const fetchEvents = vi.fn(async () => {
@@ -45,8 +44,7 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
     new CalendarWatcher({
       bus,
       settings,
-      getAccessToken: async () => (tokenRef.value === undefined ? 'at' : tokenRef.value),
-      invalidateToken,
+      getSources: () => sourcesRef.value,
       fetchEvents,
       now: () => clock.now
     })
@@ -55,8 +53,7 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
     make,
     server,
     clock,
-    tokenRef,
-    invalidateToken,
+    sourcesRef,
     settings,
     fetchEvents,
     of: (name: string) => seen.filter((s) => s.name === name).map((s) => s.payload)
@@ -138,22 +135,22 @@ describe('CalendarWatcher', () => {
   it('panne réseau : garde les derniers événements, rien de notifié', async () => {
     const t = setup({ now: at(8), events: [timed('a', at(10))], settings: { lastSummaryDate: '2026-10-03' } })
     await t.watcher.start()
-    t.server.error = new CalendarApiError('network')
+    t.server.error = new CalendarSourceError('network')
     t.server.events = []
     await t.watcher.refreshNow()
     expect(t.of('calendar.changed')).toEqual([])
-    expect(t.of('google.status')).toEqual([])
+    expect(t.of('calendar.status')).toEqual([])
   })
 
-  it('API désactivée → google.status error/api-disabled', async () => {
+  it('lien invalide → calendar.status error/invalid-url', async () => {
     const t = setup({ now: at(8) })
-    t.server.error = new CalendarApiError('api-disabled')
+    t.server.error = new CalendarSourceError('invalid-url')
     await t.watcher.start()
-    expect(t.of('google.status')).toEqual([{ state: 'error', reason: 'api-disabled' }])
+    expect(t.of('calendar.status')).toEqual([{ state: 'error', reason: 'invalid-url' }])
   })
 
-  it('non connecté à Google → aucune lecture', async () => {
-    const t = setup({ now: at(8), token: null })
+  it('aucun lien enregistré → aucune lecture', async () => {
+    const t = setup({ now: at(8), sources: [] })
     await t.watcher.start()
     expect(t.fetchEvents).not.toHaveBeenCalled()
   })
@@ -181,12 +178,12 @@ describe('CalendarWatcher', () => {
 })
 
 describe('CalendarWatcher — déconnexion, changement de compte, rétablissement', () => {
-  it('jeton absent (déconnecté/révoqué) : oublie les événements, plus de rappel ni de pastille', async () => {
+  it('liens retirés : oublie les événements, plus de rappel ni de pastille', async () => {
     const dentiste = timed('dentiste', at(14))
     const t = setup({ now: at(13, 30), events: [dentiste], settings: { lastSummaryDate: '2026-10-03' } })
     await t.watcher.start()
     expect(t.of('calendar.next').at(-1)).toEqual({ event: dentiste })
-    t.tokenRef.value = null
+    t.sourcesRef.value = []
     await t.watcher.refreshNow()
     expect(t.of('calendar.next').at(-1)).toEqual({ event: null })
     t.clock.now = at(13, 55)
@@ -194,7 +191,7 @@ describe('CalendarWatcher — déconnexion, changement de compte, rétablissemen
     expect(t.of('calendar.reminder')).toEqual([])
   })
 
-  it('reset() (changement de compte) : la lecture suivante sert de référence, aucun faux changement', async () => {
+  it('reset() (liens changés) : la lecture suivante sert de référence, aucun faux changement', async () => {
     const t = setup({ now: at(8), events: [timed('a', at(10))], settings: { lastSummaryDate: '2026-10-03' } })
     await t.watcher.start()
     t.watcher.reset()
@@ -203,28 +200,15 @@ describe('CalendarWatcher — déconnexion, changement de compte, rétablissemen
     expect(t.of('calendar.changed')).toEqual([])
   })
 
-  it('erreur Google puis lecture réussie : statut connected réémis', async () => {
+  it('lien invalide puis corrigé : statut ok réémis', async () => {
     const t = setup({ now: at(8), settings: { lastSummaryDate: '2026-10-03' } })
-    t.server.error = new CalendarApiError('api-disabled')
+    t.server.error = new CalendarSourceError('invalid-url')
     await t.watcher.start()
     t.server.error = null
     await t.watcher.refreshNow()
-    expect(t.of('google.status')).toEqual([{ state: 'error', reason: 'api-disabled' }, { state: 'connected' }])
+    expect(t.of('calendar.status')).toEqual([{ state: 'error', reason: 'invalid-url' }, { state: 'ok' }])
     await t.watcher.refreshNow()
-    expect(t.of('google.status')).toHaveLength(2)
+    expect(t.of('calendar.status')).toHaveLength(2)
   })
 
-  it('401 : invalide le jeton en cache et réessaie une fois avant de conclure', async () => {
-    const t = setup({ now: at(8), events: [timed('a', at(10))], settings: { lastSummaryDate: '2026-10-03' } })
-    let calls = 0
-    t.fetchEvents.mockImplementation(async () => {
-      calls++
-      if (calls === 1) throw new CalendarApiError('revoked')
-      return t.server.events
-    })
-    await t.watcher.start()
-    expect(t.invalidateToken).toHaveBeenCalledTimes(1)
-    expect(t.of('google.status')).toEqual([])
-    expect(calls).toBe(2)
-  })
 })

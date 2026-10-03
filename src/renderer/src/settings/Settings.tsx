@@ -1,9 +1,7 @@
 import { useEffect, useState, type FormEvent, type JSX } from 'react'
-import type { GoogleConnectResult, SaveResult, TestResult } from '../../../shared/api'
+import type { SaveResult, TestResult } from '../../../shared/api'
 
 type FailedTest = Extract<TestResult, { ok: false }>['reason']
-type FailedSave = Extract<SaveResult, { ok: false }>['reason']
-type FailedConnect = Extract<GoogleConnectResult, { ok: false }>['reason']
 
 const TEST_ERRORS: Record<FailedTest, string> = {
   auth: "Gmail a refusé la connexion. Vérifier l'adresse et le mot de passe d'application.",
@@ -11,16 +9,15 @@ const TEST_ERRORS: Record<FailedTest, string> = {
   'missing-credentials': "Renseigner l'adresse et le mot de passe d'application."
 }
 
-const SAVE_ERRORS: Record<FailedSave, string> = {
-  'invalid-email': 'Adresse e-mail invalide.',
-  'no-encryption': "Le coffre de Windows est indisponible : le mot de passe n'a pas été enregistré."
-}
-
-const CONNECT_ERRORS: Record<FailedConnect, string> = {
-  'not-configured': "Renseigner d'abord l'identifiant et le secret client Google.",
-  'invalid-client': 'Google a refusé l’identifiant ou le secret client. Les vérifier dans Google Cloud.',
-  cancelled: 'Connexion annulée ou délai dépassé (5 min).',
-  network: 'Impossible de joindre Google. Vérifier la connexion Internet.'
+function saveError(result: Extract<SaveResult, { ok: false }>): string {
+  switch (result.reason) {
+    case 'invalid-email':
+      return 'Adresse e-mail invalide.'
+    case 'no-encryption':
+      return "Le coffre de Windows est indisponible : rien n'a été enregistré."
+    case 'invalid-calendar-url':
+      return `Lien d'agenda invalide (ligne ${result.line}) : il doit commencer par https://`
+  }
 }
 
 type Message = { kind: 'ok' | 'error' | 'info'; text: string }
@@ -31,37 +28,23 @@ export function Settings(): JSX.Element {
   const [hasPassword, setHasPassword] = useState(false)
   const [displaySeconds, setDisplaySeconds] = useState(8)
   const [launchAtStartup, setLaunchAtStartup] = useState(true)
-  const [googleConnected, setGoogleConnected] = useState(false)
-  const [googleClientId, setGoogleClientId] = useState('')
-  const [googleClientSecret, setGoogleClientSecret] = useState('')
-  const [hasGoogleSecret, setHasGoogleSecret] = useState(false)
+  const [calendarCount, setCalendarCount] = useState(0)
+  /** null = garder les liens enregistrés (jamais réaffichés, car secrets). */
+  const [calendarUrls, setCalendarUrls] = useState<string | null>(null)
   const [reminderMinutes, setReminderMinutes] = useState(10)
   const [message, setMessage] = useState<Message | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const load = (): void => {
+  useEffect(() => {
     void window.tynoa.getSettings().then((s) => {
       setEmail(s.email)
       setHasPassword(s.hasPassword)
       setDisplaySeconds(s.displaySeconds)
       setLaunchAtStartup(s.launchAtStartup)
-      setGoogleConnected(s.googleConnected)
-      setGoogleClientId(s.googleClientId)
-      setHasGoogleSecret(s.hasGoogleSecret)
+      setCalendarCount(s.calendarCount)
       setReminderMinutes(s.reminderMinutes)
     })
-  }
-  useEffect(load, [])
-
-  const input = (): Parameters<typeof window.tynoa.saveSettings>[0] => ({
-    email,
-    password,
-    displaySeconds,
-    launchAtStartup,
-    googleClientId,
-    googleClientSecret,
-    reminderMinutes
-  })
+  }, [])
 
   /** Exécute une action en bloquant les boutons, même si elle échoue. */
   async function run(action: () => Promise<void>): Promise<void> {
@@ -87,42 +70,27 @@ export function Settings(): JSX.Element {
   const onSave = (e: FormEvent): Promise<void> => {
     e.preventDefault()
     return run(async () => {
-      const result = await window.tynoa.saveSettings(input())
+      const result = await window.tynoa.saveSettings({
+        email,
+        password,
+        displaySeconds,
+        launchAtStartup,
+        calendarUrls,
+        reminderMinutes
+      })
       if (!result.ok) {
-        setMessage({ kind: 'error', text: SAVE_ERRORS[result.reason] })
+        setMessage({ kind: 'error', text: saveError(result) })
         return
       }
       if (password) setHasPassword(true)
-      if (googleClientSecret) setHasGoogleSecret(true)
       setPassword('')
-      setGoogleClientSecret('')
+      if (calendarUrls !== null) {
+        setCalendarCount(calendarUrls.split(/\r?\n/).filter((l) => l.trim()).length)
+        setCalendarUrls(null)
+      }
       setMessage({ kind: 'ok', text: 'Enregistré. Tynoa se reconnecte…' })
     })
   }
-
-  const onConnectGoogle = (): Promise<void> =>
-    run(async () => {
-      // Seuls l'identifiant et le secret sont enregistrés avant d'ouvrir la page Google :
-      // un abandon ne modifie rien d'autre.
-      await window.tynoa.saveGoogleClient({ clientId: googleClientId, clientSecret: googleClientSecret })
-      if (googleClientSecret) setHasGoogleSecret(true)
-      setGoogleClientSecret('')
-      setMessage({ kind: 'info', text: 'Une page Google s’est ouverte dans le navigateur : accepter l’accès, puis revenir ici.' })
-      const result = await window.tynoa.connectGoogle()
-      if (result.ok) {
-        load()
-        setMessage({ kind: 'ok', text: `Connecté à Google${result.email ? ` (${result.email})` : ''} ✔` })
-      } else {
-        setMessage({ kind: 'error', text: CONNECT_ERRORS[result.reason] })
-      }
-    })
-
-  const onDisconnectGoogle = (): Promise<void> =>
-    run(async () => {
-      await window.tynoa.disconnectGoogle()
-      setGoogleConnected(false)
-      setMessage({ kind: 'info', text: 'Déconnecté de Google.' })
-    })
 
   return (
     <form className="settings" onSubmit={(e) => void onSave(e)}>
@@ -134,62 +102,7 @@ export function Settings(): JSX.Element {
       </h1>
 
       <section className="group">
-        <h2>Compte Google (mail et agenda)</h2>
-        {googleConnected ? (
-          <>
-            <p className="connected">✓ Connecté : {email}</p>
-            <div className="actions start">
-              <button type="button" disabled={busy} onClick={() => void onDisconnectGoogle()}>
-                Se déconnecter
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <label>
-              Identifiant client
-              <input
-                type="text"
-                value={googleClientId}
-                placeholder="xxxx.apps.googleusercontent.com"
-                autoComplete="off"
-                onChange={(e) => setGoogleClientId(e.target.value)}
-              />
-            </label>
-            <label>
-              Secret client
-              <input
-                type="password"
-                value={googleClientSecret}
-                placeholder={hasGoogleSecret ? 'Enregistré — laisser vide pour le garder' : 'GOCSPX-…'}
-                autoComplete="off"
-                onChange={(e) => setGoogleClientSecret(e.target.value)}
-              />
-              <small>
-                À créer une seule fois dans Google Cloud : voir le guide pas à pas du README de Tynoa.
-              </small>
-            </label>
-            <div className="actions start">
-              <button type="button" className="primary" disabled={busy} onClick={() => void onConnectGoogle()}>
-                Se connecter avec Google
-              </button>
-            </div>
-          </>
-        )}
-        <label>
-          Rappel avant un événement (minutes)
-          <input
-            type="number"
-            min={1}
-            max={120}
-            value={reminderMinutes}
-            onChange={(e) => setReminderMinutes(Number(e.target.value))}
-          />
-        </label>
-      </section>
-
-      <details className="group" open={!googleConnected}>
-        <summary>Sans compte Google (secours : mot de passe d&apos;application)</summary>
+        <h2>Mail (Gmail)</h2>
         <label>
           Adresse Gmail
           <input
@@ -228,7 +141,52 @@ export function Settings(): JSX.Element {
             Tester la connexion
           </button>
         </div>
-      </details>
+      </section>
+
+      <section className="group">
+        <h2>Agenda</h2>
+        {calendarUrls === null ? (
+          <>
+            <p className={calendarCount > 0 ? 'connected' : 'hint'}>
+              {calendarCount > 0
+                ? `✓ ${calendarCount} agenda${calendarCount > 1 ? 's' : ''} enregistré${calendarCount > 1 ? 's' : ''} (liens gardés secrets)`
+                : 'Aucun agenda pour l’instant.'}
+            </p>
+            <div className="actions start">
+              <button type="button" disabled={busy} onClick={() => setCalendarUrls('')}>
+                {calendarCount > 0 ? 'Remplacer les liens' : 'Ajouter des agendas'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <label>
+            Liens iCal secrets (un par ligne)
+            <textarea
+              rows={3}
+              value={calendarUrls}
+              placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setCalendarUrls(e.target.value)}
+            />
+            <small>
+              Google Agenda (sur ordinateur) → ⚙ Paramètres → cliquer sur l&apos;agenda à gauche →{' '}
+              <strong>Adresse secrète au format iCal</strong> → copier. Laisser vide puis Enregistrer pour
+              retirer tous les agendas.
+            </small>
+          </label>
+        )}
+        <label>
+          Rappel avant un événement (minutes)
+          <input
+            type="number"
+            min={1}
+            max={120}
+            value={reminderMinutes}
+            onChange={(e) => setReminderMinutes(Number(e.target.value))}
+          />
+        </label>
+      </section>
 
       <section className="group">
         <h2>Affichage</h2>

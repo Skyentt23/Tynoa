@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useState, type JSX } from 'react'
-import type { GoogleStatusReason, MailStatusReason } from '../../../shared/events'
+import type { MailStatusReason } from '../../../shared/events'
 import { CardView, formatTime } from './CardView'
 import { initialWidgetState, visibleCards, widgetReducer } from './widgetState'
 
@@ -7,14 +7,6 @@ const ERROR_TEXT: Record<MailStatusReason, string> = {
   auth: 'Connexion Gmail refusée — vérifier les paramètres',
   'missing-credentials': 'Compte Gmail à configurer — ouvrir les paramètres',
   network: 'Connexion à Gmail impossible'
-}
-
-/** Erreurs Google affichées (une panne réseau passagère ne mérite pas de carte). */
-const GOOGLE_ERROR_TEXT: Partial<Record<GoogleStatusReason, string>> = {
-  revoked: 'Connexion Google expirée — se reconnecter',
-  'invalid-client': 'Identifiant client Google refusé — vérifier les paramètres',
-  'api-disabled': "API Google Agenda désactivée — l'activer dans Google Cloud",
-  'missing-scope': "Accès à l'agenda non accordé — se reconnecter en cochant tout"
 }
 
 let nextCardId = 0
@@ -83,8 +75,8 @@ export function Widget(): JSX.Element {
         case 'calendar.next':
           dispatch({ type: 'next', event: event.payload.event })
           break
-        case 'google.status':
-          dispatch({ type: 'google', status: event.payload })
+        case 'calendar.status':
+          dispatch({ type: 'calendarStatus', status: event.payload })
           break
       }
     })
@@ -98,10 +90,9 @@ export function Widget(): JSX.Element {
 
   const { shown, overflow } = visibleCards(state)
   const status = state.status
-  const googleError =
-    state.google?.state === 'error' && state.google.reason ? GOOGLE_ERROR_TEXT[state.google.reason] : undefined
-  // Une connexion Google expirée fait aussi échouer le mail : on n'affiche que la cause.
-  const errorText = googleError ?? (status?.state === 'error' ? ERROR_TEXT[status.reason ?? 'network'] : undefined)
+  const calendarError =
+    state.calendarStatus?.state === 'error' ? 'Lien d’agenda invalide — vérifier les paramètres' : undefined
+  const errorText = (status?.state === 'error' ? ERROR_TEXT[status.reason ?? 'network'] : undefined) ?? calendarError
   const hasError = errorText !== undefined
   const label = state.next ? `${formatTime(state.next.start)} ${state.next.title}` : 'Tynoa'
 

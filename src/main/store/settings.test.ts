@@ -48,11 +48,9 @@ describe('SettingsStore', () => {
   })
 })
 
-describe('SettingsStore — agenda et Google', () => {
+describe('SettingsStore — agenda', () => {
   it('valeurs par défaut', () => {
     expect(new SettingsStore(file).load()).toMatchObject({
-      googleClientId: '',
-      googleClientSecret: '',
       reminderMinutes: 10,
       lastSummaryDate: null,
       remindedKeys: []
@@ -64,8 +62,6 @@ describe('SettingsStore — agenda et Google', () => {
     writeFileSync(
       file,
       JSON.stringify({
-        googleClientId: 'id.apps.googleusercontent.com',
-        googleClientSecret: 5,
         reminderMinutes: 500,
         lastSummaryDate: '2026-10-03',
         remindedKeys: ['a', 3, 'b']
@@ -73,8 +69,6 @@ describe('SettingsStore — agenda et Google', () => {
       'utf8'
     )
     expect(new SettingsStore(file).load()).toMatchObject({
-      googleClientId: 'id.apps.googleusercontent.com',
-      googleClientSecret: '',
       reminderMinutes: 10,
       lastSummaryDate: '2026-10-03',
       remindedKeys: ['a', 'b']

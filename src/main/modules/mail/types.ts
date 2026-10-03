@@ -27,8 +27,11 @@ export interface ImapSession {
   close(): Promise<void>
 }
 
-/** Mot de passe d'application (secours) ou jeton d'accès Google (XOAUTH2). */
-export type MailCredentials = { user: string; pass: string } | { user: string; accessToken: string }
+/** Adresse Gmail et mot de passe d'application. */
+export interface MailCredentials {
+  user: string
+  pass: string
+}
 
 export type ImapSessionFactory = (creds: MailCredentials) => ImapSession
 

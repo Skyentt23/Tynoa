@@ -1,18 +1,17 @@
-import { app, powerMonitor, safeStorage, screen, shell } from 'electron'
+import { app, powerMonitor, safeStorage, screen } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
 import type { TynoaEvents } from '../shared/events'
 import { EventBus } from './events/eventBus'
-import { GoogleAccount } from './google/googleAccount'
 import { registerIpc } from './ipc'
-import { fetchEvents } from './modules/calendar/calendarApi'
+import { readCalendarUrls } from './modules/calendar/calendarSources'
 import { CalendarWatcher } from './modules/calendar/calendarWatcher'
+import { fetchIcsEvents } from './modules/calendar/icsSource'
 import { createImapSession } from './modules/mail/imapSession'
 import { MailWatcher } from './modules/mail/mailWatcher'
 import { FOREVER, isPaused, runOnce } from './policy'
 import { CredentialStore } from './security/credentials'
-import { buildSettingsPatch, formOf } from './settingsPatch'
 import { SettingsStore } from './store/settings'
 import { watchFullscreen } from './system/fullscreen'
 import { createTray } from './tray'
@@ -48,40 +47,17 @@ function bootstrap(): void {
   const bus = new EventBus<TynoaEvents>((err) =>
     log.error('Erreur dans un abonné du bus :', err instanceof Error ? err.message : String(err))
   )
-  const google = new GoogleAccount({
-    getClient: () => {
-      const { googleClientId, googleClientSecret } = settings.load()
-      return googleClientId && googleClientSecret
-        ? { clientId: googleClientId, clientSecret: googleClientSecret }
-        : null
-    },
-    tokenStore: new CredentialStore(join(dataDir, 'google-token.bin'), safeStorage),
-    fetchFn: fetch,
-    openBrowser: (url) => void shell.openExternal(url),
-    onStatus: (status) => {
-      if (status.state === 'error') log.warn(`Google : ${status.reason}`)
-      bus.emit('google.status', status)
-    },
-    // Le compte Google devient le compte surveillé ; changement de compte → pas d'avalanche.
-    onConnected: (email) => {
-      if (email) settings.save(buildSettingsPatch(settings.load(), { ...formOf(settings.load()), email }))
-    }
-  })
+  // Liens iCal secrets : chiffrés comme le mot de passe.
+  const calendarStore = new CredentialStore(join(dataDir, 'calendars.bin'), safeStorage)
 
   const watcher = new MailWatcher({
     bus,
     settings,
     createSession: createImapSession,
-    getCredentials: async ({ oauthRejected }) => {
+    getCredentials: async () => {
       const { email } = settings.load()
-      if (!email) return null
-      // Compte Google en priorité ; le mot de passe d'application reste un secours.
-      if (google.isConnected() && !oauthRejected) {
-        const accessToken = await google.getAccessToken()
-        if (accessToken) return { user: email, accessToken }
-      }
       const pass = credentials.load()
-      return pass ? { user: email, pass } : null
+      return email && pass ? { user: email, pass } : null
     },
     log: (message) => log.warn(message)
   })
@@ -89,9 +65,9 @@ function bootstrap(): void {
   const calendar = new CalendarWatcher({
     bus,
     settings,
-    getAccessToken: () => google.getAccessToken(),
-    invalidateToken: () => google.invalidate(),
-    fetchEvents: (accessToken, range) => fetchEvents(accessToken, range, fetch),
+    getSources: () => readCalendarUrls(calendarStore),
+    // L'adresse Gmail sert à repérer les invitations refusées.
+    fetchEvents: (sources, range) => fetchIcsEvents(sources, range, fetch, settings.load().email || undefined),
     log: (message) => log.warn(message)
   })
 
@@ -124,15 +100,14 @@ function bootstrap(): void {
   registerIpc({
     settings,
     credentials,
+    calendarStore,
     watcher,
     calendar,
-    google,
     bus,
     widget,
     openSettings: openSettingsWindow,
     // Démarrage au signal du widget : aucun événement n'est émis avant qu'il écoute.
     onWidgetReady: runOnce(() => {
-      if (google.isConnected()) bus.emit('google.status', { state: 'connected' })
       void watcher.start()
       void calendar.start()
     }),
@@ -170,7 +145,7 @@ function bootstrap(): void {
   })
 
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.load().launchAtStartup })
-  // Paramètres au premier lancement seulement : ni compte Google, ni mot de passe de secours.
-  if (!settings.load().email || (!credentials.has() && !google.isConnected())) openSettingsWindow()
+  // Paramètres au premier lancement seulement (aucun compte configuré).
+  if (!settings.load().email || !credentials.has()) openSettingsWindow()
   log.info('Tynoa démarré')
 }

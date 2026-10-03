@@ -105,10 +105,10 @@ describe('widgetReducer — agenda', () => {
     expect(s.cards.map((c) => c.kind)).toEqual(['summary', 'change'])
   })
 
-  it('prochain événement et statut Google', () => {
+  it('prochain événement et statut agenda', () => {
     let s = widgetReducer(initialWidgetState, { type: 'next', event: event('A') })
     expect(s.next?.title).toBe('A')
-    s = widgetReducer(s, { type: 'google', status: { state: 'error', reason: 'revoked' } })
-    expect(s.google).toEqual({ state: 'error', reason: 'revoked' })
+    s = widgetReducer(s, { type: 'calendarStatus', status: { state: 'error', reason: 'invalid-url' } })
+    expect(s.calendarStatus).toEqual({ state: 'error', reason: 'invalid-url' })
   })
 })

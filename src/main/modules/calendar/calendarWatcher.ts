@@ -2,7 +2,7 @@ import type { CalendarEvent, TynoaEvents } from '../../../shared/events'
 import type { EventBus } from '../../events/eventBus'
 import type { Settings } from '../../store/settings'
 import { dayKey, diffChanges, dueReminders, nextEvent, reminderKey, todayEvents } from './agenda'
-import { CalendarApiError } from './calendarApi'
+import { CalendarSourceError } from './icsSource'
 
 export const POLL_MS = 5 * 60 * 1000
 export const TICK_MS = 30 * 1000
@@ -13,11 +13,9 @@ const REMINDED_TTL_MS = 2 * 24 * 60 * 60 * 1000
 export interface CalendarWatcherDeps {
   bus: EventBus<TynoaEvents>
   settings: { load(): Settings; save(patch: Partial<Settings>): Settings }
-  /** null = pas connecté à Google (ou révoqué) ; lève une erreur si Google est injoignable. */
-  getAccessToken: () => Promise<string | null>
-  /** Oublie le jeton d'accès en cache (refusé par Google) pour en obtenir un neuf. */
-  invalidateToken?: () => void
-  fetchEvents: (accessToken: string, range: { timeMin: string; timeMax: string }) => Promise<CalendarEvent[]>
+  /** Liens iCal secrets enregistrés (vide = pas d'agenda). */
+  getSources: () => string[]
+  fetchEvents: (sources: string[], range: { start: Date; end: Date }) => Promise<CalendarEvent[]>
   now?: () => Date
   log?: (message: string) => void
 }
@@ -34,7 +32,7 @@ export class CalendarWatcher {
   constructor(private readonly deps: CalendarWatcherDeps) {}
 
   /**
-   * Oublie les événements connus (déconnexion, changement de compte) : plus de rappel
+   * Oublie les événements connus (liens retirés ou changés) : plus de rappel
    * ni de pastille, et la lecture suivante sert de référence (aucun faux changement).
    */
   reset(): void {
@@ -61,7 +59,7 @@ export class CalendarWatcher {
     this.tickTimer = null
   }
 
-  /** Relecture immédiate (sortie de veille, connexion Google). Jamais deux lectures en parallèle. */
+  /** Relecture immédiate (sortie de veille, liens modifiés). Jamais deux lectures en parallèle. */
   refreshNow(): Promise<void> {
     if (!this.polling) {
       this.polling = this.poll().finally(() => {
@@ -74,17 +72,17 @@ export class CalendarWatcher {
   private async poll(): Promise<void> {
     let fresh: CalendarEvent[]
     try {
-      const token = await this.deps.getAccessToken()
-      if (!token) {
-        // Déconnecté ou révoqué : l'agenda s'arrête jusqu'à une reconnexion.
+      const sources = this.deps.getSources()
+      if (sources.length === 0) {
+        // Plus aucun agenda : plus de rappel ni de pastille.
         this.reset()
         return
       }
-      fresh = await this.fetchWithRetry(token)
+      fresh = await this.deps.fetchEvents(sources, readRange(this.now()))
     } catch (err) {
-      if (err instanceof CalendarApiError && err.kind !== 'network') {
+      if (err instanceof CalendarSourceError && err.kind === 'invalid-url') {
         this.inError = true
-        this.deps.bus.emit('google.status', { state: 'error', reason: err.kind })
+        this.deps.bus.emit('calendar.status', { state: 'error', reason: 'invalid-url' })
       } else {
         // Réseau : on garde les derniers événements connus et on réessaiera.
         this.deps.log?.(`Lecture de l'agenda impossible : ${err instanceof Error ? err.message : String(err)}`)
@@ -92,9 +90,9 @@ export class CalendarWatcher {
       return
     }
     if (this.inError) {
-      // Problème réglé (API activée, accès rétabli) : la carte d'erreur disparaît.
+      // Lien corrigé : la carte d'erreur disparaît.
       this.inError = false
-      this.deps.bus.emit('google.status', { state: 'connected' })
+      this.deps.bus.emit('calendar.status', { state: 'ok' })
     }
     const now = this.now()
     for (const change of diffChanges(this.events, fresh, now)) {
@@ -107,20 +105,6 @@ export class CalendarWatcher {
       this.deps.bus.emit('calendar.summary', { events: todayEvents(fresh, now) })
     }
     this.tick()
-  }
-
-  /** Un 401 peut venir d'un jeton en cache expiré côté Google : un essai avec un jeton neuf avant de conclure. */
-  private async fetchWithRetry(token: string): Promise<CalendarEvent[]> {
-    const range = readRange(this.now())
-    try {
-      return await this.deps.fetchEvents(token, range)
-    } catch (err) {
-      if (!(err instanceof CalendarApiError) || err.kind !== 'revoked' || !this.deps.invalidateToken) throw err
-      this.deps.invalidateToken()
-      const fresh = await this.deps.getAccessToken()
-      if (!fresh) throw err
-      return this.deps.fetchEvents(fresh, range)
-    }
   }
 
   private tick(): void {
@@ -146,10 +130,11 @@ export class CalendarWatcher {
 }
 
 /** Du début d'aujourd'hui à la fin de demain (heure locale). */
-function readRange(now: Date): { timeMin: string; timeMax: string } {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2)
-  return { timeMin: start.toISOString(), timeMax: end.toISOString() }
+function readRange(now: Date): { start: Date; end: Date } {
+  return {
+    start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+    end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2)
+  }
 }
 
 function isExpired(key: string, now: Date): boolean {

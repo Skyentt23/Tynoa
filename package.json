@@ -25,6 +25,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "electron-log": "^5.4.4",
+    "ical.js": "^2.2.1",
     "imapflow": "^2.2.1",
     "koffi": "^3.3.2"
   },

@@ -41,12 +41,10 @@ export interface CalendarChange {
   previousStart?: string
 }
 
-export type GoogleStatusReason = 'revoked' | 'network' | 'api-disabled' | 'missing-scope' | 'invalid-client'
-
-export interface GoogleStatus {
-  state: 'connected' | 'disconnected' | 'error'
-  reason?: GoogleStatusReason
-  email?: string
+/** État de la lecture des liens iCal (une panne réseau passagère n'est pas une erreur affichée). */
+export interface CalendarStatus {
+  state: 'ok' | 'error'
+  reason?: 'invalid-url'
 }
 
 export interface TynoaEvents {
@@ -57,7 +55,7 @@ export interface TynoaEvents {
   'calendar.next': { event: CalendarEvent | null }
   'calendar.summary': { events: CalendarEvent[] }
   'calendar.changed': CalendarChange
-  'google.status': GoogleStatus
+  'calendar.status': CalendarStatus
 }
 
 export type TynoaEventName = keyof TynoaEvents

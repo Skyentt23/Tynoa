@@ -15,8 +15,8 @@ export interface MailWatcherDeps {
   bus: EventBus<TynoaEvents>
   settings: { load(): Settings; save(patch: Partial<Settings>): Settings }
   createSession: ImapSessionFactory
-  /** Peut échouer (jeton Google injoignable) : traité comme une coupure réseau. */
-  getCredentials: (opts: { oauthRejected: boolean }) => Promise<MailCredentials | null>
+  /** Une erreur ici est traitée comme une coupure réseau (nouvel essai plus tard). */
+  getCredentials: () => Promise<MailCredentials | null>
   log?: (message: string) => void
 }
 
@@ -60,12 +60,12 @@ export class MailWatcher {
     await this.connect()
   }
 
-  private async connect(oauthRejected = false): Promise<void> {
+  private async connect(): Promise<void> {
     if (!this.running) return
     const gen = this.generation
     let creds: MailCredentials | null
     try {
-      creds = await this.deps.getCredentials({ oauthRejected })
+      creds = await this.deps.getCredentials()
     } catch (err) {
       if (gen !== this.generation) return
       this.deps.log?.(`Identifiants indisponibles : ${errorMessage(err)}`)
@@ -74,8 +74,7 @@ export class MailWatcher {
     }
     if (gen !== this.generation) return
     if (!creds) {
-      // Après un refus XOAUTH2 sans mot de passe de secours, c'est bien un refus d'authentification.
-      this.deps.bus.emit('mail.status', { state: 'error', reason: oauthRejected ? 'auth' : 'missing-credentials' })
+      this.deps.bus.emit('mail.status', { state: 'error', reason: 'missing-credentials' })
       return
     }
     const session = this.deps.createSession(creds)
@@ -101,11 +100,6 @@ export class MailWatcher {
     } catch (err) {
       if (gen !== this.generation) return
       await session.close().catch(() => undefined)
-      if (err instanceof MailAuthError && 'accessToken' in creds && !oauthRejected) {
-        // Accès Gmail non accordé à la connexion Google : on se replie sur le mot de passe d'application.
-        this.deps.log?.(`Connexion Google refusée par Gmail, repli : ${err.message}`)
-        return this.connect(true)
-      }
       if (err instanceof MailAuthError) {
         // Pas de nouvel essai : insister ferait bloquer le compte par Google.
         this.deps.log?.(err.message)

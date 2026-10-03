@@ -9,10 +9,11 @@ import {
   isPaused,
   isValidEmail,
   normalizeAppPassword,
+  parseCalendarUrls,
   placeWidget,
   runOnce
 } from './policy'
-import { buildSettingsPatch, googleClientPatch } from './settingsPatch'
+import { buildSettingsPatch } from './settingsPatch'
 import { DEFAULT_SETTINGS } from './store/settings'
 
 describe('isPaused', () => {
@@ -90,8 +91,6 @@ describe('buildSettingsPatch', () => {
     email: ' moi@gmail.com ',
     displaySeconds: 100,
     launchAtStartup: false,
-    googleClientId: ' id.apps.googleusercontent.com ',
-    googleClientSecret: '',
     reminderMinutes: 500
   }
 
@@ -100,7 +99,6 @@ describe('buildSettingsPatch', () => {
       email: 'moi@gmail.com',
       displaySeconds: 60,
       launchAtStartup: false,
-      googleClientId: 'id.apps.googleusercontent.com',
       reminderMinutes: 120
     })
   })
@@ -157,23 +155,25 @@ describe('isAllowedOpenLink', () => {
   )
 })
 
-describe('buildSettingsPatch — Google', () => {
-  it('secret client vide → conservé ; rempli → remplacé (espaces retirés)', () => {
-    const prev = { ...DEFAULT_SETTINGS, googleClientSecret: 'ancien' }
-    const base = { email: 'a@b.co', displaySeconds: 8, launchAtStartup: true, googleClientId: 'id', reminderMinutes: 10 }
-    expect(buildSettingsPatch(prev, { ...base, googleClientSecret: '' })).not.toHaveProperty('googleClientSecret')
-    expect(buildSettingsPatch(prev, { ...base, googleClientSecret: ' nouveau ' })).toMatchObject({
-      googleClientSecret: 'nouveau'
+describe('parseCalendarUrls', () => {
+  const a = 'https://calendar.google.com/calendar/ical/a/private-1/basic.ics'
+
+  it('un lien par ligne, lignes vides ignorées, webcal → https, doublons retirés', () => {
+    expect(parseCalendarUrls([` ${a} `, '', 'webcal://p01.icloud.com/x.ics', a].join('\n'))).toEqual({
+      ok: true,
+      urls: [a, 'https://p01.icloud.com/x.ics']
     })
   })
-})
 
-describe('googleClientPatch', () => {
-  it('ne touche qu’à l’identifiant et au secret (jamais à l’email ni à la position du mail)', () => {
-    expect(googleClientPatch({ clientId: ' id ', clientSecret: ' s ' })).toEqual({
-      googleClientId: 'id',
-      googleClientSecret: 's'
+  it('refuse ce qui n’est pas un lien https', () => {
+    expect(parseCalendarUrls(['https://ok.com/a.ics', 'http://pas-chiffre.com/b.ics'].join('\n'))).toEqual({
+      ok: false,
+      line: 2
     })
-    expect(googleClientPatch({ clientId: 'id', clientSecret: '' })).toEqual({ googleClientId: 'id' })
+    expect(parseCalendarUrls('mon agenda')).toEqual({ ok: false, line: 1 })
+  })
+
+  it('texte vide → aucun lien', () => {
+    expect(parseCalendarUrls('  ')).toEqual({ ok: true, urls: [] })
   })
 })

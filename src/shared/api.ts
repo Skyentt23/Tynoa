@@ -11,10 +11,7 @@ export const CHANNELS = {
   openSettings: 'settings:open',
   getSettings: 'settings:get',
   saveSettings: 'settings:save',
-  testConnection: 'settings:test',
-  googleConnect: 'google:connect',
-  googleDisconnect: 'google:disconnect',
-  saveGoogleClient: 'google:save-client'
+  testConnection: 'settings:test'
 } as const
 
 /** Événement du bus relayé au widget ; `silent` = pendant une pause (compter sans afficher de carte). */
@@ -27,9 +24,8 @@ export interface SettingsView {
   displaySeconds: number
   launchAtStartup: boolean
   hasPassword: boolean
-  googleConnected: boolean
-  googleClientId: string
-  hasGoogleSecret: boolean
+  /** Nombre de liens iCal enregistrés (les liens eux-mêmes restent secrets). */
+  calendarCount: number
   reminderMinutes: number
 }
 
@@ -39,19 +35,17 @@ export interface SettingsInput {
   password: string
   displaySeconds: number
   launchAtStartup: boolean
-  googleClientId: string
-  /** Vide = garder le secret enregistré. */
-  googleClientSecret: string
+  /** Liens iCal, un par ligne ; null = garder ceux enregistrés, '' = tout retirer. */
+  calendarUrls: string | null
   reminderMinutes: number
 }
 
-export type GoogleConnectResult =
-  | { ok: true; email: string | null }
-  | { ok: false; reason: 'not-configured' | 'invalid-client' | 'cancelled' | 'network' }
-
 export type TestResult = { ok: true } | { ok: false; reason: 'auth' | 'network' | 'missing-credentials' }
 
-export type SaveResult = { ok: true } | { ok: false; reason: 'invalid-email' | 'no-encryption' }
+export type SaveResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid-email' | 'no-encryption' }
+  | { ok: false; reason: 'invalid-calendar-url'; line: number }
 
 export interface TynoaApi {
   onEvent(cb: (event: RendererEvent) => void): () => void
@@ -65,9 +59,6 @@ export interface TynoaApi {
   getSettings(): Promise<SettingsView>
   saveSettings(input: SettingsInput): Promise<SaveResult>
   testConnection(input: { email: string; password: string }): Promise<TestResult>
-  saveGoogleClient(input: { clientId: string; clientSecret: string }): Promise<void>
-  connectGoogle(): Promise<GoogleConnectResult>
-  disconnectGoogle(): Promise<void>
 }
 
 export const INBOX_LINK = 'https://mail.google.com/mail/u/0/#inbox'

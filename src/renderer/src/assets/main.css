@@ -446,3 +446,20 @@ body[data-view='settings'] {
 .settings .actions.start {
   justify-content: flex-start;
 }
+
+.settings textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  resize: vertical;
+}
+
+.settings .hint {
+  margin: 0;
+  color: var(--hint);
+}

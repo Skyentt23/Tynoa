@@ -1,5 +1,5 @@
 import type { CalendarChange, CalendarEvent } from '../../../shared/events'
-import { startMs } from './calendarApi'
+import { startMs } from './icsSource'
 
 /** Fenêtre pendant laquelle la pastille annonce le prochain événement. */
 export const SOON_MS = 60 * 60 * 1000

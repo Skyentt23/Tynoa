@@ -1,7 +1,6 @@
 import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   CHANNELS,
-  type GoogleConnectResult,
   type RendererEvent,
   type SaveResult,
   type SettingsInput,
@@ -10,22 +9,29 @@ import {
 } from '../shared/api'
 import type { TynoaEventName, TynoaEvents } from '../shared/events'
 import type { EventBus } from './events/eventBus'
-import type { GoogleAccount } from './google/googleAccount'
+import { readCalendarUrls, writeCalendarUrls } from './modules/calendar/calendarSources'
 import type { CalendarWatcher } from './modules/calendar/calendarWatcher'
 import { createImapSession } from './modules/mail/imapSession'
 import type { MailWatcher } from './modules/mail/mailWatcher'
 import { testConnection } from './modules/mail/testConnection'
-import { isAllowedOpenLink, isPaused, isValidEmail, normalizeAppPassword } from './policy'
+import {
+  isAllowedOpenLink,
+  isPaused,
+  isValidEmail,
+  normalizeAppPassword,
+  parseCalendarUrls
+} from './policy'
 import { EncryptionUnavailableError, type CredentialStore } from './security/credentials'
-import { buildSettingsPatch, googleClientPatch } from './settingsPatch'
+import { buildSettingsPatch } from './settingsPatch'
 import type { SettingsStore } from './store/settings'
 
 export interface IpcDeps {
   settings: SettingsStore
   credentials: CredentialStore
+  /** Liens iCal secrets, chiffrés. */
+  calendarStore: CredentialStore
   watcher: MailWatcher
   calendar: CalendarWatcher
-  google: GoogleAccount
   bus: EventBus<TynoaEvents>
   widget: BrowserWindow
   openSettings: () => void
@@ -51,7 +57,7 @@ const RELAYED: TynoaEventName[] = [
   'calendar.next',
   'calendar.summary',
   'calendar.changed',
-  'google.status'
+  'calendar.status'
 ]
 
 export function registerIpc(d: IpcDeps): void {
@@ -68,13 +74,6 @@ export function registerIpc(d: IpcDeps): void {
         silent: PAUSABLE.has(name) && paused()
       } as RendererEvent)
     )
-  }
-
-  /** Après un changement de compte : nouvelle connexion du mail et relecture de l'agenda. */
-  const reconnectAll = (): void => {
-    toWidget(CHANNELS.settingsChanged)
-    void d.watcher.reconnectNow()
-    void d.calendar.refreshNow()
   }
 
   ipcMain.on(CHANNELS.ready, () => d.onWidgetReady())
@@ -98,28 +97,33 @@ export function registerIpc(d: IpcDeps): void {
       displaySeconds: s.displaySeconds,
       launchAtStartup: s.launchAtStartup,
       hasPassword: d.credentials.has(),
-      googleConnected: d.google.isConnected(),
-      googleClientId: s.googleClientId,
-      hasGoogleSecret: s.googleClientSecret !== '',
+      calendarCount: readCalendarUrls(d.calendarStore).length,
       reminderMinutes: s.reminderMinutes
     }
   })
 
   ipcMain.handle(CHANNELS.saveSettings, (_e, input: SettingsInput): SaveResult => {
     if (!isValidEmail(input.email.trim())) return { ok: false, reason: 'invalid-email' }
+    const calendars = input.calendarUrls === null ? null : parseCalendarUrls(input.calendarUrls)
+    if (calendars && !calendars.ok) return { ok: false, reason: 'invalid-calendar-url', line: calendars.line }
     const password = normalizeAppPassword(input.password)
-    if (password) {
-      try {
-        d.credentials.save(password)
-      } catch (err) {
-        if (err instanceof EncryptionUnavailableError) return { ok: false, reason: 'no-encryption' }
-        throw err
-      }
+    try {
+      if (password) d.credentials.save(password)
+      if (calendars) writeCalendarUrls(d.calendarStore, calendars.urls)
+    } catch (err) {
+      if (err instanceof EncryptionUnavailableError) return { ok: false, reason: 'no-encryption' }
+      throw err
     }
     const saved = d.settings.save(buildSettingsPatch(d.settings.load(), input))
     // En développement, ce serait electron.exe qui serait inscrit au démarrage de Windows.
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: saved.launchAtStartup })
-    reconnectAll()
+    toWidget(CHANNELS.settingsChanged)
+    void d.watcher.reconnectNow()
+    if (calendars) {
+      // Liens changés : nouvelle référence, pour ne pas annoncer de faux ajouts ou annulations.
+      d.calendar.reset()
+      void d.calendar.refreshNow()
+    }
     return { ok: true }
   })
 
@@ -132,24 +136,4 @@ export function registerIpc(d: IpcDeps): void {
       return testConnection(createImapSession, { user: email, pass })
     }
   )
-
-  ipcMain.handle(CHANNELS.saveGoogleClient, (_e, input: { clientId: string; clientSecret: string }): void => {
-    d.settings.save(googleClientPatch(input))
-  })
-
-  ipcMain.handle(CHANNELS.googleConnect, async (): Promise<GoogleConnectResult> => {
-    const result = await d.google.connect()
-    if (result.ok) {
-      // Peut-être un autre compte : l'agenda repart d'une référence neuve (aucun faux changement).
-      d.calendar.reset()
-      reconnectAll()
-    }
-    return result
-  })
-
-  ipcMain.handle(CHANNELS.googleDisconnect, (): void => {
-    d.google.disconnect()
-    d.calendar.reset()
-    reconnectAll()
-  })
 }

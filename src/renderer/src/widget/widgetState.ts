@@ -1,7 +1,7 @@
 import type {
   CalendarChange,
   CalendarEvent,
-  GoogleStatus,
+  CalendarStatus,
   MailReceived,
   MailStatus
 } from '../../../shared/events'
@@ -27,7 +27,7 @@ export interface WidgetState {
   listOpen: boolean
   /** Prochain événement (dans l'heure), affiché dans la pastille. */
   next: CalendarEvent | null
-  google: GoogleStatus | null
+  calendarStatus: CalendarStatus | null
 }
 
 export const initialWidgetState: WidgetState = {
@@ -37,7 +37,7 @@ export const initialWidgetState: WidgetState = {
   status: null,
   listOpen: false,
   next: null,
-  google: null
+  calendarStatus: null
 }
 
 /** Ajoute une carte, sauf pendant une pause ou si elle est déjà dans la pile. */
@@ -56,7 +56,7 @@ export type WidgetAction =
   | { type: 'summary'; events: CalendarEvent[]; silent: boolean; id: string }
   | { type: 'change'; change: CalendarChange; silent: boolean; id: string }
   | { type: 'next'; event: CalendarEvent | null }
-  | { type: 'google'; status: GoogleStatus }
+  | { type: 'calendarStatus'; status: CalendarStatus }
 
 export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetState {
   switch (action.type) {
@@ -94,8 +94,8 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       return pushCard(state, { id: action.id, kind: 'change', change: action.change }, action.silent)
     case 'next':
       return { ...state, next: action.event }
-    case 'google':
-      return { ...state, google: action.status }
+    case 'calendarStatus':
+      return { ...state, calendarStatus: action.status }
   }
 }
 

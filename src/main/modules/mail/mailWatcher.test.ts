@@ -81,7 +81,6 @@ function setup(
     creds?: MailCredentials | null
     connectErrors?: (Error | null)[]
     credsError?: Error
-    credsFn?: (o: { oauthRejected: boolean }) => Promise<MailCredentials | null>
   } = {}
 ) {
   const server: Server = {
@@ -106,8 +105,7 @@ function setup(
     return s
   })
   const creds = opts.creds === undefined ? { user: 'moi@gmail.com', pass: 'secret' } : opts.creds
-  const watcher = new MailWatcher({ bus, settings, createSession, getCredentials: async (o) => {
-      if (opts.credsFn) return opts.credsFn(o)
+  const watcher = new MailWatcher({ bus, settings, createSession, getCredentials: async () => {
       if (opts.credsError) throw opts.credsError
       return creds
     }
@@ -254,38 +252,10 @@ describe('MailWatcher', () => {
 })
 
 describe('MailWatcher — identifiants asynchrones', () => {
-  it('jeton Google injoignable : reconnexion plus tard, sans erreur définitive', async () => {
+  it('identifiants momentanément indisponibles : reconnexion plus tard, sans erreur définitive', async () => {
     const t = setup({ settings: KNOWN, credsError: new Error('fetch failed') })
     await t.watcher.start()
     expect(t.createSession).not.toHaveBeenCalled()
     expect(t.statuses()).toEqual([{ state: 'reconnecting', reason: 'network' }])
-  })
-})
-
-describe('MailWatcher — repli sur le mot de passe d’application', () => {
-  it('XOAUTH2 refusé → réessaie aussitôt avec le mot de passe d’application', async () => {
-    const credsFn = vi.fn(async (o: { oauthRejected: boolean }) =>
-      o.oauthRejected ? { user: 'moi@gmail.com', pass: 'secret' } : { user: 'moi@gmail.com', accessToken: 'at' }
-    )
-    const t = setup({ settings: KNOWN, credsFn, connectErrors: [new MailAuthError()] })
-    await t.watcher.start()
-    expect(credsFn.mock.calls.map((c) => c[0])).toEqual([{ oauthRejected: false }, { oauthRejected: true }])
-    expect(t.statuses().at(-1)).toEqual({ state: 'connected' })
-  })
-
-  it('XOAUTH2 refusé sans mot de passe de secours → error/auth', async () => {
-    const credsFn = vi.fn(async (o: { oauthRejected: boolean }) =>
-      o.oauthRejected ? null : { user: 'moi@gmail.com', accessToken: 'at' }
-    )
-    const t = setup({ settings: KNOWN, credsFn, connectErrors: [new MailAuthError()] })
-    await t.watcher.start()
-    expect(t.statuses()).toEqual([{ state: 'error', reason: 'auth' }])
-  })
-
-  it('mot de passe d’application refusé → pas de second essai', async () => {
-    const credsFn = vi.fn(async () => ({ user: 'moi@gmail.com', pass: 'secret' }))
-    const t = setup({ settings: KNOWN, credsFn, connectErrors: [new MailAuthError()] })
-    await t.watcher.start()
-    expect(credsFn).toHaveBeenCalledTimes(1)
   })
 })

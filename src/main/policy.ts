@@ -106,3 +106,26 @@ export function placeWidget(
     y: Math.round(clamp(saved.y, best.y, best.y + best.height - size.height))
   }
 }
+
+/**
+ * Liens iCal saisis dans les Paramètres, un par ligne. `webcal://` (Apple, Outlook) devient `https://`.
+ * Seul https est accepté : le lien secret donne accès à l'agenda.
+ */
+export function parseCalendarUrls(
+  text: string
+): { ok: true; urls: string[] } | { ok: false; line: number } {
+  const urls: string[] = []
+  const lines = text.split(/\r?\n/)
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i].trim()
+    if (!raw) continue
+    const candidate = raw.replace(/^webcal:\/\//i, 'https://')
+    try {
+      if (new URL(candidate).protocol !== 'https:') return { ok: false, line: i + 1 }
+    } catch {
+      return { ok: false, line: i + 1 }
+    }
+    if (!urls.includes(candidate)) urls.push(candidate)
+  }
+  return { ok: true, urls }
+}

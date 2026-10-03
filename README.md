@@ -8,49 +8,22 @@ Petit compagnon de bureau Windows : une pastille en haut de l'écran qui prévie
 - Node.js 20 ou plus récent
 - Un compte Google
 
-## Connexion Google (recommandé : mail et agenda)
-
-À faire **une seule fois**, environ 10 minutes. Le projet Google Cloud est personnel et gratuit.
-
-### 1. Créer le projet et activer l'API Agenda
-
-1. Ouvrir <https://console.cloud.google.com/> avec votre compte Google.
-2. En haut, ouvrir le sélecteur de projet, puis **Nouveau projet**, le nommer « Tynoa » et cliquer sur **Créer**. Vérifier ensuite que « Tynoa » est bien le projet sélectionné.
-3. Menu ☰ → **API et services** → **Bibliothèque** → rechercher **Google Calendar API** → **Activer**.
-
-Il n'est pas nécessaire d'activer l'API Gmail : Tynoa lit le mail en IMAP.
-
-### 2. Configurer l'écran de consentement
-
-1. Menu ☰ → **API et services** → **Écran de consentement OAuth** (ou **Google Auth Platform**), puis **Commencer**.
-2. Nom de l'application : « Tynoa ». Adresse e-mail d'assistance : la vôtre.
-3. Audience : **Externe**. Coordonnées : votre adresse. Accepter le règlement, puis **Créer**.
-4. Onglet **Audience** → **Publier l'application** → confirmer. Le statut doit indiquer **En production**.
-
-⚠️ Cette étape est indispensable. En mode « Test », Google fait expirer la connexion tous les 7 jours.
-
-### 3. Créer l'identifiant client
-
-1. Onglet **Clients** (ou **Identifiants** → **Créer des identifiants** → **ID client OAuth**).
-2. Type d'application : **Application de bureau**. Nom : « Tynoa ». Cliquer sur **Créer**.
-3. Copier l'**ID client** (`….apps.googleusercontent.com`) et le **Code secret du client** (`GOCSPX-…`).
-
-### 4. Se connecter dans Tynoa
-
-1. Paramètres → section **Compte Google** : coller l'identifiant et le secret client.
-2. Cliquer sur **Se connecter avec Google**. Une page Google s'ouvre dans le navigateur.
-3. Google affiche **« Google n'a pas validé cette application »** : c'est normal pour un outil personnel. Cliquer sur **Paramètres avancés**, puis **Accéder à Tynoa (non sécurisé)**.
-4. Cocher les accès demandés (agenda en lecture, Gmail) et cliquer sur **Continuer**. La page indique « Connexion réussie » : revenir à Tynoa.
-
-Rien n'est à ressaisir ensuite : la connexion est conservée, chiffrée par le coffre Windows, et se renouvelle seule. Si elle est révoquée (changement du mot de passe Google, retrait de l'accès), une carte « Connexion Google expirée » invite à se reconnecter en un clic.
-
-## Sans compte Google (secours) : mot de passe d'application
-
-Pour le mail uniquement, sans l'agenda :
+## Mail : mot de passe d'application Gmail
 
 1. Ouvrir <https://myaccount.google.com/apppasswords> (la validation en deux étapes doit être activée).
 2. Créer un mot de passe nommé « Tynoa » et copier les 16 caractères (les espaces sont acceptés).
-3. Dans Paramètres → **Sans compte Google**, saisir l'adresse et le mot de passe, puis **Tester la connexion** et **Enregistrer**.
+3. Dans Paramètres → **Mail**, saisir l'adresse et le mot de passe, puis **Tester la connexion** et **Enregistrer**.
+
+Ne pas supprimer ce mot de passe dans le compte Google ensuite : Tynoa le garde, chiffré, et n'a plus rien à redemander. Changer le mot de passe principal du compte Google révoque tous les mots de passe d'application : il faudra alors en recréer un.
+
+## Agenda : lien iCal secret
+
+1. Ouvrir Google Agenda **sur ordinateur** → ⚙ **Paramètres**.
+2. À gauche, sous « Paramètres de mes agendas », cliquer sur l'agenda voulu.
+3. Section **Intégrer l'agenda** → **Adresse secrète au format iCal** → copier.
+4. Dans Paramètres de Tynoa → **Agenda** → **Ajouter des agendas** : coller le lien (un par ligne pour plusieurs agendas), puis **Enregistrer**.
+
+Le lien secret donne accès à l'agenda : Tynoa le garde chiffré et ne le réaffiche jamais. Fonctionne aussi avec les liens iCal d'iCloud ou d'Outlook (`webcal://` accepté).
 
 ## Lancer
 
@@ -83,10 +56,10 @@ npm run build:unpack
 Données dans `%APPDATA%\Tynoa\` :
 
 - `settings.json` : réglages ;
-- `google-token.bin` : connexion Google, chiffrée ;
-- `credentials.bin` : mot de passe de secours, chiffré ;
+- `credentials.bin` : mot de passe d'application, chiffré ;
+- `calendars.bin` : liens iCal secrets, chiffrés ;
 - `logs\main.log` : journal.
 
 ## Limites actuelles
 
-Lecture seule ; Google uniquement (pas d'Outlook ni d'iCloud) ; notifications sans IA ; pas d'installateur signé.
+Lecture seule ; mail Gmail uniquement ; agenda relu toutes les 5 minutes ; notifications sans IA ; pas d'installateur signé.

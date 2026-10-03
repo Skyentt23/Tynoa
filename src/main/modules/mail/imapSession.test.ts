@@ -137,11 +137,3 @@ describe('close', () => {
     expect(h.closeCalls).toBe(0)
   })
 })
-
-describe('createImapSession — compte Google', () => {
-  it('s’authentifie en XOAUTH2 avec le jeton d’accès', () => {
-    createImapSession({ user: 'moi@gmail.com', accessToken: 'at' })
-    expect(h.instances[0].options).toMatchObject({ auth: { user: 'moi@gmail.com', accessToken: 'at' } })
-    expect((h.instances[0].options.auth as Record<string, unknown>).pass).toBeUndefined()
-  })
-})

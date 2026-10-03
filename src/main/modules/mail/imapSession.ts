@@ -15,10 +15,7 @@ export function createImapSession(creds: MailCredentials): ImapSession {
     host: 'imap.gmail.com',
     port: 993,
     secure: true,
-    auth:
-      'accessToken' in creds
-        ? { user: creds.user, accessToken: creds.accessToken }
-        : { user: creds.user, pass: creds.pass },
+    auth: { user: creds.user, pass: creds.pass },
     logger: false,
     // Gmail coupe l'IDLE vers 29 min : on le relance avant.
     maxIdleTime: 25 * 60 * 1000

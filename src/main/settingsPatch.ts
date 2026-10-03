@@ -5,9 +5,6 @@ export interface SettingsForm {
   email: string
   displaySeconds: number
   launchAtStartup: boolean
-  googleClientId: string
-  /** Vide = garder le secret enregistré. */
-  googleClientSecret: string
   reminderMinutes: number
 }
 
@@ -21,11 +18,8 @@ export function buildSettingsPatch(prev: Settings, form: SettingsForm): Partial<
     email,
     displaySeconds: clampDisplaySeconds(form.displaySeconds),
     launchAtStartup: form.launchAtStartup,
-    googleClientId: form.googleClientId.trim(),
     reminderMinutes: clampReminderMinutes(form.reminderMinutes)
   }
-  const secret = form.googleClientSecret.trim()
-  if (secret) patch.googleClientSecret = secret
   if (email.toLowerCase() !== prev.email.trim().toLowerCase()) {
     patch.lastSeenUid = null
     patch.uidValidity = null
@@ -33,20 +27,3 @@ export function buildSettingsPatch(prev: Settings, form: SettingsForm): Partial<
   return patch
 }
 
-/** Formulaire équivalent aux réglages actuels (secret vide = inchangé). */
-export function formOf(s: Settings): SettingsForm {
-  return {
-    email: s.email,
-    displaySeconds: s.displaySeconds,
-    launchAtStartup: s.launchAtStartup,
-    googleClientId: s.googleClientId,
-    googleClientSecret: '',
-    reminderMinutes: s.reminderMinutes
-  }
-}
-
-/** Identifiant client Google seul, avant « Se connecter » : ni email, ni reconnexion du mail. */
-export function googleClientPatch(input: { clientId: string; clientSecret: string }): Partial<Settings> {
-  const secret = input.clientSecret.trim()
-  return { googleClientId: input.clientId.trim(), ...(secret ? { googleClientSecret: secret } : {}) }
-}

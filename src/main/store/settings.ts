@@ -13,10 +13,6 @@ export interface Settings {
   /** Position du widget choisie par l'utilisateur (null = en haut au centre). */
   widgetX: number | null
   widgetY: number | null
-  /** Identifiant client OAuth (appli de bureau) du projet Google Cloud de l'utilisateur. */
-  googleClientId: string
-  /** Secret client d'une appli de bureau : non confidentiel selon Google. */
-  googleClientSecret: string
   /** Minutes avant un événement pour afficher le rappel. */
   reminderMinutes: number
   /** Jour (AAAA-MM-JJ) du dernier résumé affiché. */
@@ -34,8 +30,6 @@ export const DEFAULT_SETTINGS: Settings = {
   pausedUntil: null,
   widgetX: null,
   widgetY: null,
-  googleClientId: '',
-  googleClientSecret: '',
   reminderMinutes: 10,
   lastSummaryDate: null,
   remindedKeys: []
@@ -78,9 +72,6 @@ function sanitize(r: Record<string, unknown>): Settings {
     pausedUntil: typeof r.pausedUntil === 'number' ? r.pausedUntil : null,
     widgetX: Number.isFinite(r.widgetX) ? (r.widgetX as number) : null,
     widgetY: Number.isFinite(r.widgetY) ? (r.widgetY as number) : null,
-    googleClientId: typeof r.googleClientId === 'string' ? r.googleClientId : d.googleClientId,
-    googleClientSecret:
-      typeof r.googleClientSecret === 'string' ? r.googleClientSecret : d.googleClientSecret,
     reminderMinutes:
       Number.isInteger(r.reminderMinutes) &&
       (r.reminderMinutes as number) >= 1 &&
