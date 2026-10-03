@@ -83,8 +83,21 @@ export function Widget(): JSX.Element {
         title={hasError ? 'Ouvrir les paramètres' : 'Derniers mails'}
         onClick={() => (hasError ? window.tynoa.openSettings() : dispatch({ type: 'toggleList' }))}
       >
-        {/* Zone de glissement Windows : déplace le widget, le reste de la pastille reste cliquable. */}
-        <span className="handle" title="Déplacer" aria-hidden="true">
+        {/* Poignée : le process principal fait suivre la souris au widget tant que le bouton est enfoncé. */}
+        <span
+          className="handle"
+          title="Déplacer"
+          aria-hidden="true"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            window.tynoa.startDrag()
+          }}
+          onPointerUp={() => window.tynoa.endDrag()}
+          onLostPointerCapture={() => window.tynoa.endDrag()}
+          onClick={(e) => e.stopPropagation()}
+        >
           ⋮⋮
         </span>
         <span

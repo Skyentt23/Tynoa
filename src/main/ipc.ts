@@ -25,6 +25,8 @@ export interface IpcDeps {
   widget: BrowserWindow
   openSettings: () => void
   onWidgetReady: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
 }
 
 export function registerIpc(d: IpcDeps): void {
@@ -39,6 +41,8 @@ export function registerIpc(d: IpcDeps): void {
   d.bus.on('mail.status', (payload) => send({ name: 'mail.status', payload, silent: false }))
 
   ipcMain.on(CHANNELS.ready, () => d.onWidgetReady())
+  ipcMain.on(CHANNELS.dragStart, () => d.onDragStart())
+  ipcMain.on(CHANNELS.dragEnd, () => d.onDragEnd())
 
   ipcMain.on(CHANNELS.interactive, (_e, interactive: unknown) => {
     if (!d.widget.isDestroyed()) d.widget.setIgnoreMouseEvents(interactive !== true, { forward: true })

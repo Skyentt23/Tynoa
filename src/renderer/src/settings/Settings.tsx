@@ -90,6 +90,12 @@ export function Settings(): JSX.Element {
           autoComplete="off"
           onChange={(e) => setPassword(e.target.value)}
         />
+        {hasPassword && (
+          <small className="saved">
+            ✓ Mot de passe enregistré dans le coffre Windows : rien à ressaisir. Le champ reste vide
+            par sécurité ; ne le remplir que pour le changer.
+          </small>
+        )}
         <small>
           Ce n&apos;est pas le mot de passe Google habituel : il se crée sur{' '}
           <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer">

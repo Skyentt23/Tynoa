@@ -14,6 +14,8 @@ const api: TynoaApi = {
   onSettingsChanged: (cb) => subscribe<void>(CHANNELS.settingsChanged, () => cb()),
   ready: () => ipcRenderer.send(CHANNELS.ready),
   setInteractive: (interactive) => ipcRenderer.send(CHANNELS.interactive, interactive),
+  startDrag: () => ipcRenderer.send(CHANNELS.dragStart),
+  endDrag: () => ipcRenderer.send(CHANNELS.dragEnd),
   openMail: (link) => ipcRenderer.send(CHANNELS.openMail, link),
   openSettings: () => ipcRenderer.send(CHANNELS.openSettings),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),

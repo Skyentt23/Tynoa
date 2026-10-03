@@ -5,6 +5,8 @@ export const CHANNELS = {
   settingsChanged: 'tynoa:settings-changed',
   ready: 'widget:ready',
   interactive: 'widget:interactive',
+  dragStart: 'widget:drag-start',
+  dragEnd: 'widget:drag-end',
   openMail: 'mail:open',
   openSettings: 'settings:open',
   getSettings: 'settings:get',
@@ -41,6 +43,8 @@ export interface TynoaApi {
   onSettingsChanged(cb: () => void): () => void
   ready(): void
   setInteractive(interactive: boolean): void
+  startDrag(): void
+  endDrag(): void
   openMail(link: string): void
   openSettings(): void
   getSettings(): Promise<SettingsView>

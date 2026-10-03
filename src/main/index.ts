@@ -12,6 +12,7 @@ import { CredentialStore } from './security/credentials'
 import { SettingsStore } from './store/settings'
 import { watchFullscreen } from './system/fullscreen'
 import { createTray } from './tray'
+import { createWidgetDrag } from './widgetDrag'
 import { createWidgetWindow, openSettingsWindow, widgetPosition } from './windows'
 
 // Données dans %APPDATA%\Tynoa, en développement comme une fois installé.
@@ -63,12 +64,19 @@ function bootstrap(): void {
   const moveWidget = (position: { x: number; y: number }): void => {
     if (!widget.isDestroyed()) widget.setPosition(position.x, position.y)
   }
-  // Fin d'un déplacement à la poignée : on garde le widget entièrement visible, puis on mémorise.
-  widget.on('moved', () => {
-    const [x, y] = widget.getPosition()
-    const placed = widgetPosition({ x, y })
-    if (placed.x !== x || placed.y !== y) moveWidget(placed)
-    settings.save({ widgetX: placed.x, widgetY: placed.y })
+  const drag = createWidgetDrag({
+    getCursor: () => screen.getCursorScreenPoint(),
+    getPosition: () => {
+      const [x, y] = widget.getPosition()
+      return { x, y }
+    },
+    setPosition: moveWidget,
+    // Fin du glissement : on garde le widget entièrement visible, puis on mémorise.
+    onEnd: (position) => {
+      const placed = widgetPosition(position)
+      moveWidget(placed)
+      settings.save({ widgetX: placed.x, widgetY: placed.y })
+    }
   })
   // Écran débranché ou résolution changée : le widget revient dans une zone visible.
   const replace = (): void => moveWidget(widgetPosition(savedPosition()))
@@ -82,7 +90,9 @@ function bootstrap(): void {
     widget,
     openSettings: openSettingsWindow,
     // Démarrage au signal du widget : aucun mail rattrapé n'est émis avant qu'il écoute.
-    onWidgetReady: runOnce(() => void watcher.start())
+    onWidgetReady: runOnce(() => void watcher.start()),
+    onDragStart: drag.start,
+    onDragEnd: drag.end
   })
 
   keepAlive.push(
