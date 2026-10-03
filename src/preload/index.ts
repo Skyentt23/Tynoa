@@ -20,7 +20,9 @@ const api: TynoaApi = {
   openSettings: () => ipcRenderer.send(CHANNELS.openSettings),
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.saveSettings, input),
-  testConnection: (input) => ipcRenderer.invoke(CHANNELS.testConnection, input)
+  testConnection: (input) => ipcRenderer.invoke(CHANNELS.testConnection, input),
+  connectGoogle: () => ipcRenderer.invoke(CHANNELS.googleConnect),
+  disconnectGoogle: () => ipcRenderer.invoke(CHANNELS.googleDisconnect)
 }
 
 contextBridge.exposeInMainWorld('tynoa', api)

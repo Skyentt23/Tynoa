@@ -19,6 +19,12 @@ export function isAllowedMailLink(link: string): boolean {
   return isHttpsHost(link, ['mail.google.com'])
 }
 
+/** Liens que le widget peut ouvrir : Gmail et Google Agenda. */
+export function isAllowedOpenLink(link: string): boolean {
+  if (isHttpsHost(link, ['mail.google.com', 'calendar.google.com'])) return true
+  return isHttpsHost(link, ['www.google.com']) && new URL(link).pathname.startsWith('/calendar')
+}
+
 /** Liens d'aide autorisés dans la fenêtre Paramètres. */
 export function isAllowedHelpLink(link: string): boolean {
   return isHttpsHost(link, ['myaccount.google.com', 'support.google.com'])

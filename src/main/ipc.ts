@@ -1,18 +1,21 @@
 import { app, ipcMain, shell, type BrowserWindow } from 'electron'
 import {
   CHANNELS,
+  type GoogleConnectResult,
   type RendererEvent,
   type SaveResult,
   type SettingsInput,
   type SettingsView,
   type TestResult
 } from '../shared/api'
-import type { TynoaEvents } from '../shared/events'
+import type { TynoaEventName, TynoaEvents } from '../shared/events'
 import type { EventBus } from './events/eventBus'
+import type { GoogleAccount } from './google/googleAccount'
+import type { CalendarWatcher } from './modules/calendar/calendarWatcher'
 import { createImapSession } from './modules/mail/imapSession'
 import type { MailWatcher } from './modules/mail/mailWatcher'
 import { testConnection } from './modules/mail/testConnection'
-import { isAllowedMailLink, isPaused, isValidEmail, normalizeAppPassword } from './policy'
+import { isAllowedOpenLink, isPaused, isValidEmail, normalizeAppPassword } from './policy'
 import { EncryptionUnavailableError, type CredentialStore } from './security/credentials'
 import { buildSettingsPatch } from './settingsPatch'
 import type { SettingsStore } from './store/settings'
@@ -21,6 +24,8 @@ export interface IpcDeps {
   settings: SettingsStore
   credentials: CredentialStore
   watcher: MailWatcher
+  calendar: CalendarWatcher
+  google: GoogleAccount
   bus: EventBus<TynoaEvents>
   widget: BrowserWindow
   openSettings: () => void
@@ -29,16 +34,48 @@ export interface IpcDeps {
   onDragEnd: () => void
 }
 
+/** Pendant une pause, les cartes sont en sourdine ; la pastille et les statuts restent affichés. */
+const PAUSABLE: ReadonlySet<TynoaEventName> = new Set<TynoaEventName>([
+  'mail.received',
+  'mail.batch',
+  'calendar.reminder',
+  'calendar.summary',
+  'calendar.changed'
+])
+
+const RELAYED: TynoaEventName[] = [
+  'mail.received',
+  'mail.batch',
+  'mail.status',
+  'calendar.reminder',
+  'calendar.next',
+  'calendar.summary',
+  'calendar.changed',
+  'google.status'
+]
+
 export function registerIpc(d: IpcDeps): void {
   const toWidget = (channel: string, payload?: unknown): void => {
     if (!d.widget.isDestroyed()) d.widget.webContents.send(channel, payload)
   }
-  const send = (event: RendererEvent): void => toWidget(CHANNELS.event, event)
-  const silent = (): boolean => isPaused(Date.now(), d.settings.load().pausedUntil)
+  const paused = (): boolean => isPaused(Date.now(), d.settings.load().pausedUntil)
 
-  d.bus.on('mail.received', (payload) => send({ name: 'mail.received', payload, silent: silent() }))
-  d.bus.on('mail.batch', (payload) => send({ name: 'mail.batch', payload, silent: silent() }))
-  d.bus.on('mail.status', (payload) => send({ name: 'mail.status', payload, silent: false }))
+  for (const name of RELAYED) {
+    d.bus.on(name, (payload) =>
+      toWidget(CHANNELS.event, {
+        name,
+        payload,
+        silent: PAUSABLE.has(name) && paused()
+      } as RendererEvent)
+    )
+  }
+
+  /** Après un changement de compte : nouvelle connexion du mail et relecture de l'agenda. */
+  const reconnectAll = (): void => {
+    toWidget(CHANNELS.settingsChanged)
+    void d.watcher.reconnectNow()
+    void d.calendar.refreshNow()
+  }
 
   ipcMain.on(CHANNELS.ready, () => d.onWidgetReady())
   ipcMain.on(CHANNELS.dragStart, () => d.onDragStart())
@@ -49,7 +86,7 @@ export function registerIpc(d: IpcDeps): void {
   })
 
   ipcMain.on(CHANNELS.openMail, (_e, link: unknown) => {
-    if (typeof link === 'string' && isAllowedMailLink(link)) void shell.openExternal(link)
+    if (typeof link === 'string' && isAllowedOpenLink(link)) void shell.openExternal(link)
   })
 
   ipcMain.on(CHANNELS.openSettings, () => d.openSettings())
@@ -60,7 +97,11 @@ export function registerIpc(d: IpcDeps): void {
       email: s.email,
       displaySeconds: s.displaySeconds,
       launchAtStartup: s.launchAtStartup,
-      hasPassword: d.credentials.has()
+      hasPassword: d.credentials.has(),
+      googleConnected: d.google.isConnected(),
+      googleClientId: s.googleClientId,
+      hasGoogleSecret: s.googleClientSecret !== '',
+      reminderMinutes: s.reminderMinutes
     }
   })
 
@@ -78,8 +119,7 @@ export function registerIpc(d: IpcDeps): void {
     const saved = d.settings.save(buildSettingsPatch(d.settings.load(), input))
     // En développement, ce serait electron.exe qui serait inscrit au démarrage de Windows.
     if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: saved.launchAtStartup })
-    toWidget(CHANNELS.settingsChanged)
-    void d.watcher.reconnectNow()
+    reconnectAll()
     return { ok: true }
   })
 
@@ -92,4 +132,15 @@ export function registerIpc(d: IpcDeps): void {
       return testConnection(createImapSession, { user: email, pass })
     }
   )
+
+  ipcMain.handle(CHANNELS.googleConnect, async (): Promise<GoogleConnectResult> => {
+    const result = await d.google.connect()
+    if (result.ok) reconnectAll()
+    return result
+  })
+
+  ipcMain.handle(CHANNELS.googleDisconnect, (): void => {
+    d.google.disconnect()
+    reconnectAll()
+  })
 }

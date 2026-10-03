@@ -4,6 +4,7 @@ import {
   clampDisplaySeconds,
   isAllowedHelpLink,
   isAllowedMailLink,
+  isAllowedOpenLink,
   isFullscreenState,
   isPaused,
   isValidEmail,
@@ -85,13 +86,22 @@ describe('runOnce', () => {
 
 describe('buildSettingsPatch', () => {
   const prev = { ...DEFAULT_SETTINGS, email: 'Moi@Gmail.com', lastSeenUid: 100, uidValidity: '1' }
-  const form = { email: ' moi@gmail.com ', displaySeconds: 100, launchAtStartup: false }
+  const form = {
+    email: ' moi@gmail.com ',
+    displaySeconds: 100,
+    launchAtStartup: false,
+    googleClientId: ' id.apps.googleusercontent.com ',
+    googleClientSecret: '',
+    reminderMinutes: 500
+  }
 
   it('même compte (casse et espaces ignorés) → garde la position', () => {
     expect(buildSettingsPatch(prev, form)).toEqual({
       email: 'moi@gmail.com',
       displaySeconds: 60,
-      launchAtStartup: false
+      launchAtStartup: false,
+      googleClientId: 'id.apps.googleusercontent.com',
+      reminderMinutes: 120
     })
   })
 
@@ -131,5 +141,29 @@ describe('placeWidget', () => {
 
   it('écran débranché → retour en haut au centre', () => {
     expect(placeWidget({ x: 2500, y: 100 }, [primary], primary, size)).toEqual({ x: 770, y: 0 })
+  })
+})
+
+describe('isAllowedOpenLink', () => {
+  it.each([
+    'https://mail.google.com/mail/u/?authuser=a%40b.co#all/ff',
+    'https://calendar.google.com/',
+    'https://www.google.com/calendar/event?eid=abc'
+  ])('accepte %s', (link) => expect(isAllowedOpenLink(link)).toBe(true))
+
+  it.each(['https://www.google.com/search?q=x', 'http://calendar.google.com/', 'https://evil.com/calendar'])(
+    'refuse %s',
+    (link) => expect(isAllowedOpenLink(link)).toBe(false)
+  )
+})
+
+describe('buildSettingsPatch — Google', () => {
+  it('secret client vide → conservé ; rempli → remplacé (espaces retirés)', () => {
+    const prev = { ...DEFAULT_SETTINGS, googleClientSecret: 'ancien' }
+    const base = { email: 'a@b.co', displaySeconds: 8, launchAtStartup: true, googleClientId: 'id', reminderMinutes: 10 }
+    expect(buildSettingsPatch(prev, { ...base, googleClientSecret: '' })).not.toHaveProperty('googleClientSecret')
+    expect(buildSettingsPatch(prev, { ...base, googleClientSecret: ' nouveau ' })).toMatchObject({
+      googleClientSecret: 'nouveau'
+    })
   })
 })
