@@ -15,7 +15,8 @@ export interface MailWatcherDeps {
   bus: EventBus<TynoaEvents>
   settings: { load(): Settings; save(patch: Partial<Settings>): Settings }
   createSession: ImapSessionFactory
-  getCredentials: () => MailCredentials | null
+  /** Peut échouer (jeton Google injoignable) : traité comme une coupure réseau. */
+  getCredentials: () => Promise<MailCredentials | null>
   log?: (message: string) => void
 }
 
@@ -62,7 +63,16 @@ export class MailWatcher {
   private async connect(): Promise<void> {
     if (!this.running) return
     const gen = this.generation
-    const creds = this.deps.getCredentials()
+    let creds: MailCredentials | null
+    try {
+      creds = await this.deps.getCredentials()
+    } catch (err) {
+      if (gen !== this.generation) return
+      this.deps.log?.(`Identifiants indisponibles : ${errorMessage(err)}`)
+      this.handleDisconnect()
+      return
+    }
+    if (gen !== this.generation) return
     if (!creds) {
       this.deps.bus.emit('mail.status', { state: 'error', reason: 'missing-credentials' })
       return

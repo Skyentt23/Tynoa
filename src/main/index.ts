@@ -48,7 +48,7 @@ function bootstrap(): void {
     bus,
     settings,
     createSession: createImapSession,
-    getCredentials: () => {
+    getCredentials: async () => {
       const { email } = settings.load()
       const pass = credentials.load()
       return email && pass ? { user: email, pass } : null

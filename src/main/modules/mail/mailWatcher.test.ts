@@ -80,6 +80,7 @@ function setup(
     settings?: Partial<Settings>
     creds?: MailCredentials | null
     connectErrors?: (Error | null)[]
+    credsError?: Error
   } = {}
 ) {
   const server: Server = {
@@ -104,7 +105,11 @@ function setup(
     return s
   })
   const creds = opts.creds === undefined ? { user: 'moi@gmail.com', pass: 'secret' } : opts.creds
-  const watcher = new MailWatcher({ bus, settings, createSession, getCredentials: () => creds })
+  const watcher = new MailWatcher({ bus, settings, createSession, getCredentials: async () => {
+      if (opts.credsError) throw opts.credsError
+      return creds
+    }
+  })
   return {
     server,
     settings,
@@ -243,5 +248,14 @@ describe('MailWatcher', () => {
     expect(t.sessions[0].closed).toBe(true)
     await advance(600_000)
     expect(t.createSession).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MailWatcher — identifiants asynchrones', () => {
+  it('jeton Google injoignable : reconnexion plus tard, sans erreur définitive', async () => {
+    const t = setup({ settings: KNOWN, credsError: new Error('fetch failed') })
+    await t.watcher.start()
+    expect(t.createSession).not.toHaveBeenCalled()
+    expect(t.statuses()).toEqual([{ state: 'reconnecting', reason: 'network' }])
   })
 })
