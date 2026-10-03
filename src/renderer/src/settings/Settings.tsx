@@ -102,12 +102,11 @@ export function Settings(): JSX.Element {
 
   const onConnectGoogle = (): Promise<void> =>
     run(async () => {
-      // L'identifiant et le secret doivent être enregistrés avant d'ouvrir la page Google.
-      const saved = await window.tynoa.saveSettings({ ...input(), email: email || 'compte@gmail.com' })
-      if (!saved.ok) {
-        setMessage({ kind: 'error', text: SAVE_ERRORS[saved.reason] })
-        return
-      }
+      // Seuls l'identifiant et le secret sont enregistrés avant d'ouvrir la page Google :
+      // un abandon ne modifie rien d'autre.
+      await window.tynoa.saveGoogleClient({ clientId: googleClientId, clientSecret: googleClientSecret })
+      if (googleClientSecret) setHasGoogleSecret(true)
+      setGoogleClientSecret('')
       setMessage({ kind: 'info', text: 'Une page Google s’est ouverte dans le navigateur : accepter l’accès, puis revenir ici.' })
       const result = await window.tynoa.connectGoogle()
       if (result.ok) {

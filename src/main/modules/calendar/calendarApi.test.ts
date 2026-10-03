@@ -113,3 +113,12 @@ describe('fetchEvents', () => {
     expect(err).toMatchObject({ kind: 'network' })
   })
 })
+
+describe('fetchEvents — autorisation', () => {
+  it('agenda non coché lors du consentement (403 insufficientPermissions) → missing-scope', async () => {
+    const fetchFn = vi.fn(async () =>
+      jsonResponse(403, { error: { code: 403, status: 'PERMISSION_DENIED', errors: [{ reason: 'insufficientPermissions' }] } })
+    )
+    await expect(fetchEvents('at', range, fetchFn)).rejects.toMatchObject({ kind: 'missing-scope' })
+  })
+})

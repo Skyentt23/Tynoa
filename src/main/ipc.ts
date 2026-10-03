@@ -17,7 +17,7 @@ import type { MailWatcher } from './modules/mail/mailWatcher'
 import { testConnection } from './modules/mail/testConnection'
 import { isAllowedOpenLink, isPaused, isValidEmail, normalizeAppPassword } from './policy'
 import { EncryptionUnavailableError, type CredentialStore } from './security/credentials'
-import { buildSettingsPatch } from './settingsPatch'
+import { buildSettingsPatch, googleClientPatch } from './settingsPatch'
 import type { SettingsStore } from './store/settings'
 
 export interface IpcDeps {
@@ -133,14 +133,23 @@ export function registerIpc(d: IpcDeps): void {
     }
   )
 
+  ipcMain.handle(CHANNELS.saveGoogleClient, (_e, input: { clientId: string; clientSecret: string }): void => {
+    d.settings.save(googleClientPatch(input))
+  })
+
   ipcMain.handle(CHANNELS.googleConnect, async (): Promise<GoogleConnectResult> => {
     const result = await d.google.connect()
-    if (result.ok) reconnectAll()
+    if (result.ok) {
+      // Peut-être un autre compte : l'agenda repart d'une référence neuve (aucun faux changement).
+      d.calendar.reset()
+      reconnectAll()
+    }
     return result
   })
 
   ipcMain.handle(CHANNELS.googleDisconnect, (): void => {
     d.google.disconnect()
+    d.calendar.reset()
     reconnectAll()
   })
 }

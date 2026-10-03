@@ -13,7 +13,8 @@ const ERROR_TEXT: Record<MailStatusReason, string> = {
 const GOOGLE_ERROR_TEXT: Partial<Record<GoogleStatusReason, string>> = {
   revoked: 'Connexion Google expirée — se reconnecter',
   'invalid-client': 'Identifiant client Google refusé — vérifier les paramètres',
-  'api-disabled': "API Google Agenda désactivée — l'activer dans Google Cloud"
+  'api-disabled': "API Google Agenda désactivée — l'activer dans Google Cloud",
+  'missing-scope': "Accès à l'agenda non accordé — se reconnecter en cochant tout"
 }
 
 let nextCardId = 0

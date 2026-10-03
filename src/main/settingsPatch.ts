@@ -44,3 +44,9 @@ export function formOf(s: Settings): SettingsForm {
     reminderMinutes: s.reminderMinutes
   }
 }
+
+/** Identifiant client Google seul, avant « Se connecter » : ni email, ni reconnexion du mail. */
+export function googleClientPatch(input: { clientId: string; clientSecret: string }): Partial<Settings> {
+  const secret = input.clientSecret.trim()
+  return { googleClientId: input.clientId.trim(), ...(secret ? { googleClientSecret: secret } : {}) }
+}

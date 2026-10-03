@@ -15,6 +15,8 @@ export interface CalendarWatcherDeps {
   settings: { load(): Settings; save(patch: Partial<Settings>): Settings }
   /** null = pas connecté à Google (ou révoqué) ; lève une erreur si Google est injoignable. */
   getAccessToken: () => Promise<string | null>
+  /** Oublie le jeton d'accès en cache (refusé par Google) pour en obtenir un neuf. */
+  invalidateToken?: () => void
   fetchEvents: (accessToken: string, range: { timeMin: string; timeMax: string }) => Promise<CalendarEvent[]>
   now?: () => Date
   log?: (message: string) => void
@@ -27,8 +29,19 @@ export class CalendarWatcher {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private tickTimer: ReturnType<typeof setInterval> | null = null
   private polling: Promise<void> | null = null
+  private inError = false
 
   constructor(private readonly deps: CalendarWatcherDeps) {}
+
+  /**
+   * Oublie les événements connus (déconnexion, changement de compte) : plus de rappel
+   * ni de pastille, et la lecture suivante sert de référence (aucun faux changement).
+   */
+  reset(): void {
+    this.events = null
+    if (this.lastNextKey) this.deps.bus.emit('calendar.next', { event: null })
+    this.lastNextKey = ''
+  }
 
   private now(): Date {
     return this.deps.now?.() ?? new Date()
@@ -62,16 +75,26 @@ export class CalendarWatcher {
     let fresh: CalendarEvent[]
     try {
       const token = await this.deps.getAccessToken()
-      if (!token) return
-      fresh = await this.deps.fetchEvents(token, readRange(this.now()))
+      if (!token) {
+        // Déconnecté ou révoqué : l'agenda s'arrête jusqu'à une reconnexion.
+        this.reset()
+        return
+      }
+      fresh = await this.fetchWithRetry(token)
     } catch (err) {
       if (err instanceof CalendarApiError && err.kind !== 'network') {
+        this.inError = true
         this.deps.bus.emit('google.status', { state: 'error', reason: err.kind })
       } else {
         // Réseau : on garde les derniers événements connus et on réessaiera.
         this.deps.log?.(`Lecture de l'agenda impossible : ${err instanceof Error ? err.message : String(err)}`)
       }
       return
+    }
+    if (this.inError) {
+      // Problème réglé (API activée, accès rétabli) : la carte d'erreur disparaît.
+      this.inError = false
+      this.deps.bus.emit('google.status', { state: 'connected' })
     }
     const now = this.now()
     for (const change of diffChanges(this.events, fresh, now)) {
@@ -84,6 +107,20 @@ export class CalendarWatcher {
       this.deps.bus.emit('calendar.summary', { events: todayEvents(fresh, now) })
     }
     this.tick()
+  }
+
+  /** Un 401 peut venir d'un jeton en cache expiré côté Google : un essai avec un jeton neuf avant de conclure. */
+  private async fetchWithRetry(token: string): Promise<CalendarEvent[]> {
+    const range = readRange(this.now())
+    try {
+      return await this.deps.fetchEvents(token, range)
+    } catch (err) {
+      if (!(err instanceof CalendarApiError) || err.kind !== 'revoked' || !this.deps.invalidateToken) throw err
+      this.deps.invalidateToken()
+      const fresh = await this.deps.getAccessToken()
+      if (!fresh) throw err
+      return this.deps.fetchEvents(fresh, range)
+    }
   }
 
   private tick(): void {

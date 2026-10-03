@@ -16,7 +16,7 @@ export interface MailWatcherDeps {
   settings: { load(): Settings; save(patch: Partial<Settings>): Settings }
   createSession: ImapSessionFactory
   /** Peut échouer (jeton Google injoignable) : traité comme une coupure réseau. */
-  getCredentials: () => Promise<MailCredentials | null>
+  getCredentials: (opts: { oauthRejected: boolean }) => Promise<MailCredentials | null>
   log?: (message: string) => void
 }
 
@@ -60,12 +60,12 @@ export class MailWatcher {
     await this.connect()
   }
 
-  private async connect(): Promise<void> {
+  private async connect(oauthRejected = false): Promise<void> {
     if (!this.running) return
     const gen = this.generation
     let creds: MailCredentials | null
     try {
-      creds = await this.deps.getCredentials()
+      creds = await this.deps.getCredentials({ oauthRejected })
     } catch (err) {
       if (gen !== this.generation) return
       this.deps.log?.(`Identifiants indisponibles : ${errorMessage(err)}`)
@@ -74,7 +74,8 @@ export class MailWatcher {
     }
     if (gen !== this.generation) return
     if (!creds) {
-      this.deps.bus.emit('mail.status', { state: 'error', reason: 'missing-credentials' })
+      // Après un refus XOAUTH2 sans mot de passe de secours, c'est bien un refus d'authentification.
+      this.deps.bus.emit('mail.status', { state: 'error', reason: oauthRejected ? 'auth' : 'missing-credentials' })
       return
     }
     const session = this.deps.createSession(creds)
@@ -100,6 +101,11 @@ export class MailWatcher {
     } catch (err) {
       if (gen !== this.generation) return
       await session.close().catch(() => undefined)
+      if (err instanceof MailAuthError && 'accessToken' in creds && !oauthRejected) {
+        // Accès Gmail non accordé à la connexion Google : on se replie sur le mot de passe d'application.
+        this.deps.log?.(`Connexion Google refusée par Gmail, repli : ${err.message}`)
+        return this.connect(true)
+      }
       if (err instanceof MailAuthError) {
         // Pas de nouvel essai : insister ferait bloquer le compte par Google.
         this.deps.log?.(err.message)

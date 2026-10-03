@@ -124,3 +124,13 @@ describe('GoogleAccount.disconnect', () => {
     expect(await t.account.getAccessToken()).toBeNull()
   })
 })
+
+describe('GoogleAccount.invalidate', () => {
+  it('force un renouvellement au prochain appel', async () => {
+    const t = setup({ token: 'rt' })
+    await t.account.getAccessToken()
+    t.account.invalidate()
+    await t.account.getAccessToken()
+    expect(t.fetchFn).toHaveBeenCalledTimes(2)
+  })
+})

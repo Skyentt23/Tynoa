@@ -72,11 +72,11 @@ function bootstrap(): void {
     bus,
     settings,
     createSession: createImapSession,
-    getCredentials: async () => {
+    getCredentials: async ({ oauthRejected }) => {
       const { email } = settings.load()
       if (!email) return null
       // Compte Google en priorité ; le mot de passe d'application reste un secours.
-      if (google.isConnected()) {
+      if (google.isConnected() && !oauthRejected) {
         const accessToken = await google.getAccessToken()
         if (accessToken) return { user: email, accessToken }
       }
@@ -90,6 +90,7 @@ function bootstrap(): void {
     bus,
     settings,
     getAccessToken: () => google.getAccessToken(),
+    invalidateToken: () => google.invalidate(),
     fetchEvents: (accessToken, range) => fetchEvents(accessToken, range, fetch),
     log: (message) => log.warn(message)
   })
@@ -169,6 +170,7 @@ function bootstrap(): void {
   })
 
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.load().launchAtStartup })
-  if (!settings.load().email || !credentials.has()) openSettingsWindow()
+  // Paramètres au premier lancement seulement : ni compte Google, ni mot de passe de secours.
+  if (!settings.load().email || (!credentials.has() && !google.isConnected())) openSettingsWindow()
   log.info('Tynoa démarré')
 }

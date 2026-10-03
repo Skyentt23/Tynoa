@@ -41,7 +41,7 @@ export interface CalendarChange {
   previousStart?: string
 }
 
-export type GoogleStatusReason = 'revoked' | 'network' | 'api-disabled' | 'invalid-client'
+export type GoogleStatusReason = 'revoked' | 'network' | 'api-disabled' | 'missing-scope' | 'invalid-client'
 
 export interface GoogleStatus {
   state: 'connected' | 'disconnected' | 'error'

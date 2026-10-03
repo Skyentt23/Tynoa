@@ -13,7 +13,8 @@ export const CHANNELS = {
   saveSettings: 'settings:save',
   testConnection: 'settings:test',
   googleConnect: 'google:connect',
-  googleDisconnect: 'google:disconnect'
+  googleDisconnect: 'google:disconnect',
+  saveGoogleClient: 'google:save-client'
 } as const
 
 /** Événement du bus relayé au widget ; `silent` = pendant une pause (compter sans afficher de carte). */
@@ -64,6 +65,7 @@ export interface TynoaApi {
   getSettings(): Promise<SettingsView>
   saveSettings(input: SettingsInput): Promise<SaveResult>
   testConnection(input: { email: string; password: string }): Promise<TestResult>
+  saveGoogleClient(input: { clientId: string; clientSecret: string }): Promise<void>
   connectGoogle(): Promise<GoogleConnectResult>
   disconnectGoogle(): Promise<void>
 }

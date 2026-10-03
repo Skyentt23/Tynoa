@@ -12,7 +12,7 @@ import {
   placeWidget,
   runOnce
 } from './policy'
-import { buildSettingsPatch } from './settingsPatch'
+import { buildSettingsPatch, googleClientPatch } from './settingsPatch'
 import { DEFAULT_SETTINGS } from './store/settings'
 
 describe('isPaused', () => {
@@ -165,5 +165,15 @@ describe('buildSettingsPatch — Google', () => {
     expect(buildSettingsPatch(prev, { ...base, googleClientSecret: ' nouveau ' })).toMatchObject({
       googleClientSecret: 'nouveau'
     })
+  })
+})
+
+describe('googleClientPatch', () => {
+  it('ne touche qu’à l’identifiant et au secret (jamais à l’email ni à la position du mail)', () => {
+    expect(googleClientPatch({ clientId: ' id ', clientSecret: ' s ' })).toEqual({
+      googleClientId: 'id',
+      googleClientSecret: 's'
+    })
+    expect(googleClientPatch({ clientId: 'id', clientSecret: '' })).toEqual({ googleClientId: 'id' })
   })
 })

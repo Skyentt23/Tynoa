@@ -21,6 +21,7 @@ const api: TynoaApi = {
   getSettings: () => ipcRenderer.invoke(CHANNELS.getSettings),
   saveSettings: (input) => ipcRenderer.invoke(CHANNELS.saveSettings, input),
   testConnection: (input) => ipcRenderer.invoke(CHANNELS.testConnection, input),
+  saveGoogleClient: (input) => ipcRenderer.invoke(CHANNELS.saveGoogleClient, input),
   connectGoogle: () => ipcRenderer.invoke(CHANNELS.googleConnect),
   disconnectGoogle: () => ipcRenderer.invoke(CHANNELS.googleDisconnect)
 }

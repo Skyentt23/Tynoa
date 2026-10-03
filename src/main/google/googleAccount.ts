@@ -80,6 +80,11 @@ export class GoogleAccount {
     }
   }
 
+  /** Jeton d'accès refusé par une API : le prochain appel en demandera un neuf. */
+  invalidate(): void {
+    this.cache = null
+  }
+
   disconnect(): void {
     this.deps.tokenStore.clear()
     this.cache = null

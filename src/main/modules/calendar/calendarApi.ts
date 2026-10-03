@@ -4,7 +4,7 @@ import type { FetchFn } from '../../google/oauth'
 const API = 'https://www.googleapis.com/calendar/v3'
 const CALENDAR_HOME = 'https://calendar.google.com/'
 
-export type CalendarApiErrorKind = 'revoked' | 'api-disabled' | 'network'
+export type CalendarApiErrorKind = 'revoked' | 'api-disabled' | 'missing-scope' | 'network'
 
 export class CalendarApiError extends Error {
   constructor(
@@ -39,6 +39,10 @@ async function get<T>(url: string, accessToken: string, fetchFn: FetchFn): Promi
   }
   if (res.status === 401) throw new CalendarApiError('revoked', 'HTTP 401')
   const reasons = (body.error?.errors ?? []).map((e) => e.reason)
+  // L'utilisateur a décoché l'accès à l'agenda sur l'écran de consentement.
+  if (res.status === 403 && reasons.includes('insufficientPermissions')) {
+    throw new CalendarApiError('missing-scope', 'insufficientPermissions')
+  }
   if (
     res.status === 403 &&
     (reasons.includes('accessNotConfigured') || body.error?.status === 'PERMISSION_DENIED')

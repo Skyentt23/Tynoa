@@ -30,6 +30,8 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
   }
   const server = { events: opts.events ?? [], error: null as Error | null }
   const clock = { now: opts.now }
+  const tokenRef: { value: string | null | undefined } = { value: opts.token }
+  const invalidateToken = vi.fn()
   const bus = new EventBus<TynoaEvents>()
   const seen: { name: string; payload: unknown }[] = []
   for (const name of ['calendar.reminder', 'calendar.next', 'calendar.summary', 'calendar.changed', 'google.status'] as const) {
@@ -43,7 +45,8 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
     new CalendarWatcher({
       bus,
       settings,
-      getAccessToken: async () => (opts.token === undefined ? 'at' : opts.token),
+      getAccessToken: async () => (tokenRef.value === undefined ? 'at' : tokenRef.value),
+      invalidateToken,
       fetchEvents,
       now: () => clock.now
     })
@@ -52,6 +55,8 @@ function setup(opts: { now: Date; events?: CalendarEvent[]; settings?: Partial<S
     make,
     server,
     clock,
+    tokenRef,
+    invalidateToken,
     settings,
     fetchEvents,
     of: (name: string) => seen.filter((s) => s.name === name).map((s) => s.payload)
@@ -172,5 +177,54 @@ describe('CalendarWatcher', () => {
     t.watcher.stop()
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(t.fetchEvents).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CalendarWatcher — déconnexion, changement de compte, rétablissement', () => {
+  it('jeton absent (déconnecté/révoqué) : oublie les événements, plus de rappel ni de pastille', async () => {
+    const dentiste = timed('dentiste', at(14))
+    const t = setup({ now: at(13, 30), events: [dentiste], settings: { lastSummaryDate: '2026-10-03' } })
+    await t.watcher.start()
+    expect(t.of('calendar.next').at(-1)).toEqual({ event: dentiste })
+    t.tokenRef.value = null
+    await t.watcher.refreshNow()
+    expect(t.of('calendar.next').at(-1)).toEqual({ event: null })
+    t.clock.now = at(13, 55)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(t.of('calendar.reminder')).toEqual([])
+  })
+
+  it('reset() (changement de compte) : la lecture suivante sert de référence, aucun faux changement', async () => {
+    const t = setup({ now: at(8), events: [timed('a', at(10))], settings: { lastSummaryDate: '2026-10-03' } })
+    await t.watcher.start()
+    t.watcher.reset()
+    t.server.events = [timed('b', at(11))]
+    await t.watcher.refreshNow()
+    expect(t.of('calendar.changed')).toEqual([])
+  })
+
+  it('erreur Google puis lecture réussie : statut connected réémis', async () => {
+    const t = setup({ now: at(8), settings: { lastSummaryDate: '2026-10-03' } })
+    t.server.error = new CalendarApiError('api-disabled')
+    await t.watcher.start()
+    t.server.error = null
+    await t.watcher.refreshNow()
+    expect(t.of('google.status')).toEqual([{ state: 'error', reason: 'api-disabled' }, { state: 'connected' }])
+    await t.watcher.refreshNow()
+    expect(t.of('google.status')).toHaveLength(2)
+  })
+
+  it('401 : invalide le jeton en cache et réessaie une fois avant de conclure', async () => {
+    const t = setup({ now: at(8), events: [timed('a', at(10))], settings: { lastSummaryDate: '2026-10-03' } })
+    let calls = 0
+    t.fetchEvents.mockImplementation(async () => {
+      calls++
+      if (calls === 1) throw new CalendarApiError('revoked')
+      return t.server.events
+    })
+    await t.watcher.start()
+    expect(t.invalidateToken).toHaveBeenCalledTimes(1)
+    expect(t.of('google.status')).toEqual([])
+    expect(calls).toBe(2)
   })
 })
