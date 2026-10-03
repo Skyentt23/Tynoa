@@ -1,4 +1,4 @@
-import { app, powerMonitor, safeStorage } from 'electron'
+import { app, powerMonitor, safeStorage, screen } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
@@ -12,7 +12,7 @@ import { CredentialStore } from './security/credentials'
 import { SettingsStore } from './store/settings'
 import { watchFullscreen } from './system/fullscreen'
 import { createTray } from './tray'
-import { createWidgetWindow, openSettingsWindow } from './windows'
+import { createWidgetWindow, openSettingsWindow, widgetPosition } from './windows'
 
 // Données dans %APPDATA%\Tynoa, en développement comme une fois installé.
 app.setName('Tynoa')
@@ -55,7 +55,25 @@ function bootstrap(): void {
     log: (message) => log.warn(message)
   })
 
-  const widget = createWidgetWindow()
+  const savedPosition = (): { x: number; y: number } | null => {
+    const { widgetX, widgetY } = settings.load()
+    return widgetX === null || widgetY === null ? null : { x: widgetX, y: widgetY }
+  }
+  const widget = createWidgetWindow(widgetPosition(savedPosition()))
+  const moveWidget = (position: { x: number; y: number }): void => {
+    if (!widget.isDestroyed()) widget.setPosition(position.x, position.y)
+  }
+  // Fin d'un déplacement à la poignée : on garde le widget entièrement visible, puis on mémorise.
+  widget.on('moved', () => {
+    const [x, y] = widget.getPosition()
+    const placed = widgetPosition({ x, y })
+    if (placed.x !== x || placed.y !== y) moveWidget(placed)
+    settings.save({ widgetX: placed.x, widgetY: placed.y })
+  })
+  // Écran débranché ou résolution changée : le widget revient dans une zone visible.
+  const replace = (): void => moveWidget(widgetPosition(savedPosition()))
+  screen.on('display-removed', replace)
+  screen.on('display-metrics-changed', replace)
   registerIpc({
     settings,
     credentials,
@@ -74,6 +92,10 @@ function bootstrap(): void {
       pause: (duration) =>
         settings.save({ pausedUntil: duration === 'forever' ? FOREVER : Date.now() + duration }),
       resume: () => settings.save({ pausedUntil: null }),
+      resetWidget: () => {
+        settings.save({ widgetX: null, widgetY: null })
+        replace()
+      },
       quit: () => void watcher.stop().finally(() => app.quit())
     })
   )

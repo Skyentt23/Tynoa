@@ -10,6 +10,9 @@ export interface Settings {
   uidValidity: string | null
   /** Horodatage (ms) de fin de pause, null = pas de pause. */
   pausedUntil: number | null
+  /** Position du widget choisie par l'utilisateur (null = en haut au centre). */
+  widgetX: number | null
+  widgetY: number | null
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -18,7 +21,9 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtStartup: true,
   lastSeenUid: null,
   uidValidity: null,
-  pausedUntil: null
+  pausedUntil: null,
+  widgetX: null,
+  widgetY: null
 }
 
 export class SettingsStore {
@@ -55,6 +60,8 @@ function sanitize(r: Record<string, unknown>): Settings {
     launchAtStartup: typeof r.launchAtStartup === 'boolean' ? r.launchAtStartup : d.launchAtStartup,
     lastSeenUid: Number.isInteger(r.lastSeenUid) ? (r.lastSeenUid as number) : null,
     uidValidity: typeof r.uidValidity === 'string' ? r.uidValidity : null,
-    pausedUntil: typeof r.pausedUntil === 'number' ? r.pausedUntil : null
+    pausedUntil: typeof r.pausedUntil === 'number' ? r.pausedUntil : null,
+    widgetX: Number.isFinite(r.widgetX) ? (r.widgetX as number) : null,
+    widgetY: Number.isFinite(r.widgetY) ? (r.widgetY as number) : null
   }
 }

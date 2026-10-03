@@ -54,3 +54,49 @@ export function runOnce(fn: () => void): () => void {
     fn()
   }
 }
+
+export interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function overlap(a: Rect, b: Rect): number {
+  const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+  const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+  return w > 0 && h > 0 ? w * h : 0
+}
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), Math.max(min, max))
+
+/**
+ * Position du widget : celle choisie par l'utilisateur, ramenée entièrement
+ * dans l'écran qui en contient le plus (cartes comprises) ; en haut au centre
+ * de l'écran principal si aucune position n'est enregistrée ou si l'écran a disparu.
+ */
+export function placeWidget(
+  saved: { x: number; y: number } | null,
+  workAreas: Rect[],
+  primary: Rect,
+  size: { width: number; height: number }
+): { x: number; y: number } {
+  const topCenter = { x: Math.round(primary.x + (primary.width - size.width) / 2), y: primary.y }
+  if (!saved) return topCenter
+  const bounds = { ...saved, ...size }
+  let best: Rect | null = null
+  let bestOverlap = 0
+  for (const area of workAreas) {
+    const o = overlap(bounds, area)
+    if (o > bestOverlap) {
+      best = area
+      bestOverlap = o
+    }
+  }
+  if (!best) return topCenter
+  return {
+    x: Math.round(clamp(saved.x, best.x, best.x + best.width - size.width)),
+    y: Math.round(clamp(saved.y, best.y, best.y + best.height - size.height))
+  }
+}

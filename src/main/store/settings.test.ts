@@ -30,14 +30,15 @@ describe('SettingsStore', () => {
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(
       file,
-      JSON.stringify({ email: 42, displaySeconds: 500, launchAtStartup: false, lastSeenUid: 12, uidValidity: '9', pausedUntil: 'x' }),
+      JSON.stringify({ email: 42, displaySeconds: 500, launchAtStartup: false, lastSeenUid: 12, uidValidity: '9', pausedUntil: 'x', widgetX: 'a', widgetY: 50 }),
       'utf8'
     )
     expect(new SettingsStore(file).load()).toEqual({
       ...DEFAULT_SETTINGS,
       launchAtStartup: false,
       lastSeenUid: 12,
-      uidValidity: '9'
+      uidValidity: '9',
+      widgetY: 50
     })
   })
 

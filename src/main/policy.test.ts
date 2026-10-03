@@ -8,6 +8,7 @@ import {
   isPaused,
   isValidEmail,
   normalizeAppPassword,
+  placeWidget,
   runOnce
 } from './policy'
 import { buildSettingsPatch } from './settingsPatch'
@@ -100,5 +101,35 @@ describe('buildSettingsPatch', () => {
       lastSeenUid: null,
       uidValidity: null
     })
+  })
+})
+
+describe('placeWidget', () => {
+  const size = { width: 380, height: 420 }
+  const primary = { x: 0, y: 0, width: 1920, height: 1040 }
+  const second = { x: 1920, y: 0, width: 1280, height: 984 }
+
+  it('sans position enregistrée → en haut au centre de l’écran principal', () => {
+    expect(placeWidget(null, [primary], primary, size)).toEqual({ x: 770, y: 0 })
+  })
+
+  it('position visible → conservée', () => {
+    expect(placeWidget({ x: 100, y: 200 }, [primary], primary, size)).toEqual({ x: 100, y: 200 })
+  })
+
+  it('trop bas ou trop à droite → remonté pour que les cartes restent visibles', () => {
+    expect(placeWidget({ x: 1800, y: 900 }, [primary], primary, size)).toEqual({ x: 1540, y: 620 })
+  })
+
+  it('sur le second écran → reste sur le second écran', () => {
+    expect(placeWidget({ x: 2500, y: 100 }, [primary, second], primary, size)).toEqual({ x: 2500, y: 100 })
+  })
+
+  it('à cheval sur deux écrans → rangé dans celui qui en contient le plus', () => {
+    expect(placeWidget({ x: 1800, y: 100 }, [primary, second], primary, size)).toEqual({ x: 1920, y: 100 })
+  })
+
+  it('écran débranché → retour en haut au centre', () => {
+    expect(placeWidget({ x: 2500, y: 100 }, [primary], primary, size)).toEqual({ x: 770, y: 0 })
   })
 })

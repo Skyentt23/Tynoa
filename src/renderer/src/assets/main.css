@@ -55,6 +55,22 @@ body[data-view='widget'] {
   opacity: 1;
 }
 
+/* Plus petite que la pastille : on la survole toujours en passant par une zone qui reçoit la souris. */
+.handle {
+  -webkit-app-region: drag;
+  padding: 2px 3px;
+  margin-left: -6px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: -3px;
+  cursor: grab;
+}
+
+.handle:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .mascot {
   font-size: 16px;
   color: var(--accent);

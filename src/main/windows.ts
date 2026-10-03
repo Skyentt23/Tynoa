@@ -1,10 +1,9 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
-import { isAllowedHelpLink } from './policy'
+import { isAllowedHelpLink, placeWidget } from './policy'
 
-const WIDGET_WIDTH = 380
-const WIDGET_HEIGHT = 420
+export const WIDGET_SIZE = { width: 380, height: 420 }
 
 const webPreferences = {
   preload: join(__dirname, '../preload/index.js'),
@@ -21,18 +20,25 @@ function loadRenderer(win: BrowserWindow, view: 'widget' | 'settings'): void {
   }
 }
 
-/** Widget : sans cadre, transparent, au-dessus de tout, centré en haut, clics traversants. */
-export function createWidgetWindow(): BrowserWindow {
-  const { workArea } = screen.getPrimaryDisplay()
+/** Position du widget, ramenée dans un écran existant (voir `placeWidget`). */
+export function widgetPosition(saved: { x: number; y: number } | null): { x: number; y: number } {
+  return placeWidget(
+    saved,
+    screen.getAllDisplays().map((d) => d.workArea),
+    screen.getPrimaryDisplay().workArea,
+    WIDGET_SIZE
+  )
+}
+
+/** Widget : sans cadre, transparent, au-dessus de tout, clics traversants, déplaçable par sa poignée. */
+export function createWidgetWindow(position: { x: number; y: number }): BrowserWindow {
   const win = new BrowserWindow({
-    width: WIDGET_WIDTH,
-    height: WIDGET_HEIGHT,
-    x: Math.round(workArea.x + (workArea.width - WIDGET_WIDTH) / 2),
-    y: workArea.y,
+    ...WIDGET_SIZE,
+    ...position,
     frame: false,
     transparent: true,
     resizable: false,
-    movable: false,
+    movable: true,
     focusable: false,
     skipTaskbar: true,
     hasShadow: false,

@@ -6,6 +6,7 @@ export interface TrayActions {
   isPaused(): boolean
   pause(duration: number | 'forever'): void
   resume(): void
+  resetWidget(): void
   quit(): void
 }
 
@@ -23,6 +24,7 @@ export function createTray(actions: TrayActions): Tray {
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: 'Paramètres…', click: () => actions.openSettings() },
+        { label: 'Replacer le widget en haut', click: () => actions.resetWidget() },
         { type: 'separator' },
         ...pauseItems,
         { type: 'separator' },

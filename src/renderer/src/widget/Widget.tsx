@@ -83,6 +83,10 @@ export function Widget(): JSX.Element {
         title={hasError ? 'Ouvrir les paramètres' : 'Derniers mails'}
         onClick={() => (hasError ? window.tynoa.openSettings() : dispatch({ type: 'toggleList' }))}
       >
+        {/* Zone de glissement Windows : déplace le widget, le reste de la pastille reste cliquable. */}
+        <span className="handle" title="Déplacer" aria-hidden="true">
+          ⋮⋮
+        </span>
         <span
           key={state.unseen}
           className={`mascot${state.unseen > 0 ? ' bounce' : ''}`}
