@@ -82,11 +82,55 @@ body[data-view='widget'] {
   animation: bounce 0.6s ease;
 }
 
+.pill {
+  max-width: 300px;
+}
+
 .count {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   text-align: center;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.count.next {
+  color: #fde68a;
+}
+
+.badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #1e1b4b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.card-reminder {
+  border-left: 3px solid #fbbf24;
+}
+
+.card-summary,
+.card-change {
+  border-left: 3px solid var(--accent);
+}
+
+.agenda-line {
+  margin-top: 3px;
+}
+
+.agenda-time {
+  display: inline-block;
+  min-width: 52px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .dot {
@@ -368,4 +412,37 @@ body[data-view='settings'] {
 
 .settings .message.info {
   background: rgba(161, 161, 170, 0.15);
+}
+
+.settings .group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.settings h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.settings summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings details[open] summary {
+  margin-bottom: 4px;
+}
+
+.settings .connected {
+  margin: 0;
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.settings .actions.start {
+  justify-content: flex-start;
 }

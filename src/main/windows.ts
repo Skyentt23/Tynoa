@@ -66,7 +66,7 @@ export function openSettingsWindow(): void {
   }
   const win = new BrowserWindow({
     width: 460,
-    height: 560,
+    height: 740,
     title: 'Tynoa — Paramètres',
     resizable: false,
     maximizable: false,

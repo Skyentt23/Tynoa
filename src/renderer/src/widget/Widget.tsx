@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState, type JSX } from 'react'
-import type { MailStatusReason } from '../../../shared/events'
-import { CardView } from './CardView'
+import type { GoogleStatusReason, MailStatusReason } from '../../../shared/events'
+import { CardView, formatTime } from './CardView'
 import { initialWidgetState, visibleCards, widgetReducer } from './widgetState'
 
 const ERROR_TEXT: Record<MailStatusReason, string> = {
@@ -8,6 +8,16 @@ const ERROR_TEXT: Record<MailStatusReason, string> = {
   'missing-credentials': 'Compte Gmail à configurer — ouvrir les paramètres',
   network: 'Connexion à Gmail impossible'
 }
+
+/** Erreurs Google affichées (une panne réseau passagère ne mérite pas de carte). */
+const GOOGLE_ERROR_TEXT: Partial<Record<GoogleStatusReason, string>> = {
+  revoked: 'Connexion Google expirée — se reconnecter',
+  'invalid-client': 'Identifiant client Google refusé — vérifier les paramètres',
+  'api-disabled': "API Google Agenda désactivée — l'activer dans Google Cloud"
+}
+
+let nextCardId = 0
+const cardId = (prefix: string): string => `${prefix}-${++nextCardId}`
 
 /**
  * La fenêtre laisse passer les clics, sauf au-dessus des éléments `data-interactive`.
@@ -54,11 +64,26 @@ export function Widget(): JSX.Element {
             type: 'batch',
             count: event.payload.count,
             silent: event.silent,
-            id: `batch-${Date.now()}`
+            id: cardId('batch')
           })
           break
         case 'mail.status':
           dispatch({ type: 'status', status: event.payload })
+          break
+        case 'calendar.reminder':
+          dispatch({ type: 'reminder', ...event.payload, silent: event.silent })
+          break
+        case 'calendar.summary':
+          dispatch({ type: 'summary', events: event.payload.events, silent: event.silent, id: cardId('summary') })
+          break
+        case 'calendar.changed':
+          dispatch({ type: 'change', change: event.payload, silent: event.silent, id: cardId('change') })
+          break
+        case 'calendar.next':
+          dispatch({ type: 'next', event: event.payload.event })
+          break
+        case 'google.status':
+          dispatch({ type: 'google', status: event.payload })
           break
       }
     })
@@ -72,7 +97,12 @@ export function Widget(): JSX.Element {
 
   const { shown, overflow } = visibleCards(state)
   const status = state.status
-  const hasError = status?.state === 'error'
+  const googleError =
+    state.google?.state === 'error' && state.google.reason ? GOOGLE_ERROR_TEXT[state.google.reason] : undefined
+  // Une connexion Google expirée fait aussi échouer le mail : on n'affiche que la cause.
+  const errorText = googleError ?? (status?.state === 'error' ? ERROR_TEXT[status.reason ?? 'network'] : undefined)
+  const hasError = errorText !== undefined
+  const label = state.next ? `${formatTime(state.next.start)} ${state.next.title}` : 'Tynoa'
 
   return (
     <div className="widget">
@@ -107,8 +137,11 @@ export function Widget(): JSX.Element {
         >
           ✦
         </span>
-        <span className="count">{state.unseen > 0 ? state.unseen : 'Tynoa'}</span>
-        <span className={`dot dot-${status?.state ?? 'reconnecting'}`} />
+        <span className={`count${state.next ? ' next' : ''}`} title={label}>
+          {label}
+        </span>
+        {state.unseen > 0 && <span className="badge">{state.unseen}</span>}
+        <span className={`dot dot-${hasError ? 'error' : (status?.state ?? 'reconnecting')}`} />
       </button>
 
       {hasError && (
@@ -118,7 +151,7 @@ export function Widget(): JSX.Element {
           className="card error"
           onClick={() => window.tynoa.openSettings()}
         >
-          {ERROR_TEXT[status.reason ?? 'network']}
+          {errorText}
         </button>
       )}
 

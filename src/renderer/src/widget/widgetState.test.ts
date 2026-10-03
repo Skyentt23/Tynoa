@@ -76,3 +76,39 @@ describe('visibleCards', () => {
     expect(overflow).toBe(2)
   })
 })
+
+const event = (title: string): import('../../../shared/events').CalendarEvent => ({
+  key: `cal:${title}`,
+  title,
+  start: '2026-10-03T12:00:00.000Z',
+  end: '2026-10-03T12:30:00.000Z',
+  allDay: false,
+  link: 'https://www.google.com/calendar/event?eid=x'
+})
+
+describe('widgetReducer — agenda', () => {
+  it('rappel : une carte, sans toucher au compteur de mails', () => {
+    const s = widgetReducer(initialWidgetState, { type: 'reminder', event: event('Dentiste'), minutes: 10, silent: false })
+    expect(s.cards).toEqual([{ id: 'reminder-cal:Dentiste@2026-10-03T12:00:00.000Z', kind: 'reminder', event: event('Dentiste'), minutes: 10 }])
+    expect(s.unseen).toBe(0)
+  })
+
+  it('rappel en double ignoré ; en pause pas de carte', () => {
+    const once = widgetReducer(initialWidgetState, { type: 'reminder', event: event('A'), minutes: 10, silent: false })
+    expect(widgetReducer(once, { type: 'reminder', event: event('A'), minutes: 10, silent: false }).cards).toHaveLength(1)
+    expect(widgetReducer(initialWidgetState, { type: 'reminder', event: event('A'), minutes: 10, silent: true }).cards).toEqual([])
+  })
+
+  it('résumé et changement : une carte chacun', () => {
+    let s = widgetReducer(initialWidgetState, { type: 'summary', events: [event('A')], silent: false, id: 's1' })
+    s = widgetReducer(s, { type: 'change', change: { kind: 'added', event: event('B') }, silent: false, id: 'c1' })
+    expect(s.cards.map((c) => c.kind)).toEqual(['summary', 'change'])
+  })
+
+  it('prochain événement et statut Google', () => {
+    let s = widgetReducer(initialWidgetState, { type: 'next', event: event('A') })
+    expect(s.next?.title).toBe('A')
+    s = widgetReducer(s, { type: 'google', status: { state: 'error', reason: 'revoked' } })
+    expect(s.google).toEqual({ state: 'error', reason: 'revoked' })
+  })
+})
